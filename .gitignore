@@ -1,0 +1,11 @@
+# Miscellaneous
+*.log
+*.pyc
+*.sw[pon]
+.DS_Store
+.atom/
+.build/
+.buildlog/
+
+/tmp
+
