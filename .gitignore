@@ -1,4 +1,5 @@
 # Miscellaneous
+/.env
 *.log
 *.pyc
 *.sw[pon]

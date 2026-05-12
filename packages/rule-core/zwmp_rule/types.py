@@ -29,17 +29,29 @@ class WebMediaRule(BaseModel):
     source: HttpUrl
     candidate_selector: str
     candidate_link_selector: str | None = None
+    detail_url_selector: str | None = None
+    detail_url_mode: Literal["single", "expand"] = "single"
+    detail_url_selector_2: str | None = None
+    detail_url_mode_2: Literal["single", "expand"] = "single"
+    detail_url_selector_3: str | None = None
+    detail_url_mode_3: Literal["single", "expand"] = "single"
+    detail_url_max_hops: int = 3
+    detail_url_stop_when_media_found: bool = True
+    max_detail_concurrency: int = 3
     title_selector: str | None = None
     thumbnail_selector: str | None = None
     duration_selector: str | None = None
+    media_selector: str | None = None
     projection: Projection = Projection.BY_ITEM
     media_type: MediaType = MediaType.VIDEO
     media_url_ttl: int | None = None
     media_delivery: MediaDelivery = MediaDelivery.AUTO
     max_items: int | None = None
     force_network_sniff: bool = False
+    play_button_selector: str | None = None
     fast_mode: bool = False
     force_desktop_mode: bool = False
+    selector_wait_timeout: float = 0
 
     @field_validator("candidate_selector")
     @classmethod
@@ -48,7 +60,7 @@ class WebMediaRule(BaseModel):
             raise ValueError("candidate_selector is required")
         return value.strip()
 
-    @field_validator("media_url_ttl", "max_items")
+    @field_validator("media_url_ttl", "max_items", "detail_url_max_hops", "max_detail_concurrency")
     @classmethod
     def non_negative_int(cls, value: int | None) -> int | None:
         if value is not None and value < 0:
@@ -100,4 +112,3 @@ class ProjectionResult(BaseModel):
     media: list[ProjectionMedia] = Field(default_factory=list)
     debug_events: list[DebugEvent] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-

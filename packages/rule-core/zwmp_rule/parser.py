@@ -16,21 +16,34 @@ FIELD_ORDER = [
     "source",
     "candidate_selector",
     "candidate_link_selector",
+    "detail_url_selector",
+    "detail_url_mode",
+    "detail_url_selector_2",
+    "detail_url_mode_2",
+    "detail_url_selector_3",
+    "detail_url_mode_3",
+    "detail_url_max_hops",
+    "detail_url_stop_when_media_found",
+    "max_detail_concurrency",
     "title_selector",
     "thumbnail_selector",
     "duration_selector",
+    "media_selector",
     "projection",
     "media_type",
     "media_url_ttl",
     "media_delivery",
     "max_items",
     "force_network_sniff",
+    "play_button_selector",
     "fast_mode",
     "force_desktop_mode",
+    "selector_wait_timeout",
 ]
 
-BOOL_FIELDS = {"force_network_sniff", "fast_mode", "force_desktop_mode"}
-INT_FIELDS = {"media_url_ttl", "max_items"}
+BOOL_FIELDS = {"force_network_sniff", "fast_mode", "force_desktop_mode", "detail_url_stop_when_media_found"}
+INT_FIELDS = {"media_url_ttl", "max_items", "detail_url_max_hops", "max_detail_concurrency"}
+FLOAT_FIELDS = {"selector_wait_timeout"}
 
 
 def parse_rule(text: str) -> WebMediaRule:
@@ -56,6 +69,11 @@ def parse_rule(text: str) -> WebMediaRule:
                 data[key] = int(value)
             except ValueError as exc:
                 raise RuleError(f"{key} must be an integer", index) from exc
+        elif key in FLOAT_FIELDS:
+            try:
+                data[key] = float(value)
+            except ValueError as exc:
+                raise RuleError(f"{key} must be a number", index) from exc
         else:
             data[key] = value
     try:
@@ -88,4 +106,3 @@ def format_rule(rule: WebMediaRule) -> str:
             rendered = str(value)
         lines.append(f"{key}={rendered}")
     return "\n".join(lines) + "\n"
-

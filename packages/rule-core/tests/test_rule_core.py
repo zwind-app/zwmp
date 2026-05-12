@@ -28,6 +28,28 @@ def test_parse_invalid_int_reports_line():
     assert error.value.line == 3
 
 
+def test_parse_supported_detail_fields():
+    rule = parse_rule(
+        """
+        source=https://example.com
+        candidate_selector=.video-card
+        detail_url_selector=a.btn-play
+        detail_url_mode=expand
+        detail_url_selector_2=a.source
+        detail_url_stop_when_media_found=false
+        max_detail_concurrency=4
+        media_selector=video source
+        play_button_selector=button.play
+        selector_wait_timeout=1.5
+        """
+    )
+
+    rendered = format_rule(rule)
+    assert "detail_url_selector=a.btn-play" in rendered
+    assert "detail_url_mode=expand" in rendered
+    assert "selector_wait_timeout=1.5" in rendered
+
+
 def test_media_type_matching_does_not_treat_image_as_video():
     assert is_media_url("https://cdn.example.com/movie.m3u8?token=1", "video")
     assert not is_media_url("https://cdn.example.com/cover.jpg", "video")
@@ -59,4 +81,3 @@ def test_build_projection_tree_by_item():
     assert tree[0].name == "items.json"
     assert tree[1].kind == "directory"
     assert tree[1].children[-1].name == "media.mp4"
-

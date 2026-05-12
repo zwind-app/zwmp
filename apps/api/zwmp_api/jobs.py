@@ -12,7 +12,7 @@ from zwmp_rule.projection import build_projection_tree
 
 from .config import Settings
 from .fetcher import PageFetcher
-from .heuristics import analyze_site, build_projection_from_rule, choose_best_draft
+from .heuristics import analyze_site, build_projection_from_rule, choose_best_draft, extract_links_by_selector
 from .ai import AIAnalyzer
 from .schemas import (
     GenerationRequest,
@@ -171,7 +171,7 @@ class JobManager:
     async def _probe_detail_pages(self, rule, projection: ProjectionResult) -> ProjectionResult:
         if projection.media or not projection.items:
             return projection
-        semaphore = asyncio.Semaphore(3)
+        semaphore = asyncio.Semaphore(max(1, rule.max_detail_concurrency))
 
         async def probe(item):
             async with semaphore:
@@ -181,6 +181,19 @@ class JobManager:
                     item.warning = f"Detail probe failed: {exc}"
                     return []
                 urls = extract_media_urls(page.html, page.final_url, str(rule.media_type))
+                if not urls and rule.detail_url_selector:
+                    next_urls = extract_links_by_selector(
+                        page.html,
+                        page.final_url,
+                        rule.detail_url_selector,
+                        limit=1 if rule.detail_url_mode == "single" else 20,
+                    )
+                    for next_url in next_urls:
+                        try:
+                            next_page = await self.fetcher.load(next_url, force_desktop=rule.force_desktop_mode or True)
+                        except Exception:
+                            continue
+                        urls.extend(extract_media_urls(next_page.html, next_page.final_url, str(rule.media_type)))
                 found = []
                 for url in urls[:3]:
                     media_id = f"media-{item.id}-{len(found) + 1}"

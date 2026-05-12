@@ -248,6 +248,32 @@ def build_projection_from_rule(rule: WebMediaRule, html_text: str, final_url: st
     )
 
 
+def extract_links_by_selector(html_text: str, base_url: str, selector: str | None, limit: int = 50) -> list[str]:
+    extractor = AnchorExtractor(base_url)
+    extractor.feed(html_text)
+    anchors = extractor.anchors
+    if not selector:
+        return [anchor.absolute_url for anchor in anchors[:limit]]
+    matched = [anchor.absolute_url for anchor in anchors if anchor_matches_selector(anchor, selector)]
+    return matched[:limit]
+
+
+def anchor_matches_selector(anchor: AnchorCandidate, selector: str) -> bool:
+    selector = selector.strip()
+    if selector in {"a", "a[href]"}:
+        return True
+    class_match = re.fullmatch(r"a?\.([A-Za-z_][A-Za-z0-9_-]*)", selector)
+    if class_match:
+        return class_match.group(1) in anchor.classes
+    href_contains = re.search(r"href\*=[\"']([^\"']+)[\"']", selector)
+    if href_contains:
+        return href_contains.group(1) in anchor.href or href_contains.group(1) in anchor.absolute_url
+    if selector.startswith("."):
+        wanted = selector[1:].split()[0]
+        return wanted in anchor.classes
+    return False
+
+
 def choose_best_draft(drafts: list[RuleDraft], projection: ProjectionResult | None = None) -> RuleDraft:
     if not projection:
         return drafts[0]
@@ -348,4 +374,3 @@ def title_from_url(url: str) -> str:
     if not tail:
         return parsed.hostname or "item"
     return re.sub(r"[-_]+", " ", tail[-1].rsplit(".", 1)[0]).strip() or "item"
-

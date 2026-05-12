@@ -1,59 +1,101 @@
 # ZWMP Rule Specification
 
-ZWMP rules are UTF-8 `.wm` text files using `key=value` lines. Comments start with `#`.
+ZWMP rules are UTF-8 `.wm` text files using `key=value` lines. Comments start with `#`; blank lines are ignored.
 
-## Supported Fields
+## Minimal Rule
 
 ```ini
 source=https://example.com/videos
 candidate_selector=a:has(img)
+projection=by-item
+media_type=video
+```
+
+## Supported Fields
+
+The reference implementation accepts and preserves the following rule keys:
+
+```ini
+source=https://example.com/videos
+candidate_selector=.video-card
 candidate_link_selector=a.title
+detail_url_selector=a.btn-play
+detail_url_mode=single
+detail_url_selector_2=a.source
+detail_url_mode_2=single
+detail_url_selector_3=a.real-play-url
+detail_url_mode_3=single
+detail_url_max_hops=3
+detail_url_stop_when_media_found=true
+max_detail_concurrency=3
 title_selector=h1
 thumbnail_selector=.thumb img
 duration_selector=.duration
-projection=by-item
+media_selector=video source
 media_type=video
 media_url_ttl=0
 media_delivery=auto
+projection=by-item
 max_items=30
 force_network_sniff=false
+play_button_selector=button[aria-label*=Play]
 fast_mode=false
 force_desktop_mode=false
+selector_wait_timeout=1.5
 ```
 
-Required:
+Runtime support levels:
+
+- Stable: `source`, `candidate_selector`, `candidate_link_selector`, `title_selector`, `thumbnail_selector`, `duration_selector`, `projection`, `media_type`, `media_url_ttl`, `media_delivery`, `max_items`, `force_network_sniff`, `fast_mode`, `force_desktop_mode`.
+- Implemented baseline: `detail_url_selector`, `detail_url_mode`, `max_detail_concurrency`, `media_selector`, `play_button_selector`, `selector_wait_timeout`.
+- Parsed and preserved for compatibility: numbered multi-hop fields such as `detail_url_selector_2` and `detail_url_selector_3`. Full multi-hop expansion is still being hardened in the reference runtime.
+
+## Required Fields
 
 - `source`: absolute `http` or `https` URL.
 - `candidate_selector`: CSS selector for listing items.
 
-Defaults:
+## Defaults
 
 - `projection=by-item`
 - `media_type=video`
 - `media_delivery=auto`
-- boolean fields default to `false`
+- `detail_url_mode=single`
+- `detail_url_max_hops=3`
+- `detail_url_stop_when_media_found=true`
+- `max_detail_concurrency=3`
+- boolean fields default to `false` unless documented otherwise
 
-Supported media types:
+## Media Types
 
-- `video`
-- `audio`
-- `image`
-- `all`
+- `video`: video files and manifests such as `.mp4`, `.webm`, `.m3u8`, `.mpd`.
+- `audio`: audio files such as `.mp3`, `.m4a`, `.flac`, `.ogg`.
+- `image`: image files such as `.jpg`, `.png`, `.webp`, `.avif`.
+- `all`: all supported media categories.
 
-Supported projection modes:
+## Projection Modes
 
-- `by-item`
-- `flat`
+- `by-item`: each listing item becomes a projected directory.
+- `flat`: media entries are projected as files in one directory.
 
-## Planned Fields
+## Intermediate Detail Pages
 
-The broader design includes intermediate page chains, click strategies, selector wait timeouts, and multi-hop expansion. These are documented in `tmp/refs/web-media-rule-spec.md`, but they are experimental until implemented in the reference runtime.
+Some listing items point to an intermediate page before the actual media page.
 
-The generator must not emit planned fields by default unless the UI marks them as experimental.
+```ini
+source=https://example.com/videos
+candidate_selector=a.video-thumb
+detail_url_selector=a.btn-play
+detail_url_mode=single
+projection=by-item
+media_type=video
+```
+
+`detail_url_selector` is evaluated on the first detail page. The reference runtime extracts URLs from matching anchors and then probes those pages for media. `detail_url_mode=expand` allows multiple matched links, which is useful for episode lists.
 
 ## Projection JSON
 
-The preview API returns a JSON shape with:
+The preview API returns:
 
 - `tree`: projected WebDAV-like directory nodes.
 - `items`: resolved listing items.
