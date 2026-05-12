@@ -1,0 +1,70 @@
+# Architecture
+
+ZWMP uses a direct, validation-first pipeline.
+
+```text
+URL + media type
+  -> SSRF guard
+  -> browser-capable page load
+  -> DOM and anchor heuristics
+  -> AI provider boundary, optional
+  -> rule draft validation by execution
+  -> rule text + projection preview
+  -> generated rule persistence
+```
+
+## Backend
+
+The backend is a FastAPI application in `apps/api`.
+
+Core responsibilities:
+
+- load user-provided pages with Playwright when available, falling back to HTTP fetch
+- discover repeated item structures
+- produce `.wm` rule drafts
+- validate drafts by executing them against the loaded page
+- save generated rules and metadata
+- expose short-lived proxy access only for media discovered inside a preview session
+
+## Rule Core
+
+`packages/rule-core` contains code that should stay independent from the web service:
+
+- parser and deterministic formatter
+- media URL matching and extraction
+- projection tree generation
+- SSRF URL guard
+
+## Cache Boundary
+
+ZWMP deliberately separates two caches:
+
+- Rule generation cache: cached by URL, media type, options, generator version, and schema version.
+- Projection preview: not long-term cached. It represents a fresh execution of the rule and may contain expiring media URLs.
+
+This is important because many media URLs contain short-lived signatures or require request headers observed during browser loading.
+
+## ZWMP-Hub
+
+Successful generated rules are saved under `data/generated-rules`:
+
+```text
+data/generated-rules/
+  video/
+    streaming/
+      example.com/
+        example.com-video-<hash>.wm
+        example.com-video-<hash>.json
+```
+
+The metadata file is intended to become the source material for a future community rule index named ZWMP-Hub.
+
+## Security
+
+The backend treats input URLs as untrusted:
+
+- only `http` and `https` are allowed
+- localhost, private, link-local, multicast, reserved, and metadata-service addresses are blocked
+- page loads have timeouts and maximum HTML size limits
+- proxy endpoints cannot fetch arbitrary URLs; they only serve media IDs discovered by a job
+

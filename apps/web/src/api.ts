@@ -1,0 +1,34 @@
+import type { JobResponse, MediaType } from "./types";
+
+export async function createGenerationJob(url: string, mediaType: MediaType): Promise<JobResponse> {
+  const response = await fetch("/api/generation-jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, media_type: mediaType, options: {} })
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+
+export async function getGenerationJob(id: string): Promise<JobResponse> {
+  const response = await fetch(`/api/generation-jobs/${id}`);
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+
+export async function createProjectionJob(ruleText: string): Promise<JobResponse> {
+  const response = await fetch("/api/projection-jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rule_text: ruleText })
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+
+export async function getProjectionJob(id: string): Promise<JobResponse> {
+  const response = await fetch(`/api/projection-jobs/${id}`);
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+

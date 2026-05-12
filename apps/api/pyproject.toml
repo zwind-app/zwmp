@@ -1,0 +1,22 @@
+[project]
+name = "zwmp-api"
+version = "0.1.0"
+description = "ZWMP FastAPI backend"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111",
+  "pydantic>=2.7",
+  "uvicorn[standard]>=0.30",
+  "httpx>=0.27",
+  "zwmp-rule",
+]
+
+[project.optional-dependencies]
+browser = ["playwright>=1.44"]
+test = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "../../packages/rule-core"]
+asyncio_mode = "auto"
+

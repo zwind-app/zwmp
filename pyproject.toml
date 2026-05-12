@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["packages/rule-core/tests", "apps/api/tests"]
+pythonpath = ["packages/rule-core", "apps/api"]
+asyncio_mode = "auto"
+

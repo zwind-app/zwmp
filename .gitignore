@@ -9,3 +9,27 @@
 
 /tmp
 
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+apps/api/.venv/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+apps/web/node_modules/
+apps/web/dist/
+
+# Runtime data
+data/cache/*
+!data/cache/.gitkeep
+data/generated-rules/**/*.wm
+data/generated-rules/**/*.json
+!data/generated-rules/.gitkeep
