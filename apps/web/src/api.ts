@@ -5,6 +5,13 @@ export interface GenerationOptions {
   force_network_sniff: boolean;
   fast_mode: boolean;
   max_items: number | null;
+  sample_items: number;
+  max_candidate_groups: number;
+  validate_hypotheses: number;
+  validation_limit: number;
+  detail_probes: number;
+  scroll_steps: number;
+  desktop: boolean;
 }
 
 export async function createGenerationJob(url: string, mediaType: MediaType, options: GenerationOptions): Promise<JobResponse> {

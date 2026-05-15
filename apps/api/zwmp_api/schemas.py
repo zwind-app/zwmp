@@ -13,8 +13,15 @@ JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 class GenerationOptions(BaseModel):
     force_refresh: bool = False
     force_network_sniff: bool = False
-    fast_mode: bool = False
+    fast_mode: bool = True
     max_items: int | None = None
+    sample_items: int = 8
+    max_candidate_groups: int = 6
+    validate_hypotheses: int = 5
+    validation_limit: int = 24
+    detail_probes: int = 3
+    scroll_steps: int = 3
+    desktop: bool = False
 
 
 class GenerationRequest(BaseModel):
@@ -44,7 +51,7 @@ class RuleDraft(BaseModel):
 
 
 class RuntimeNotice(BaseModel):
-    kind: Literal["ai_fallback", "browser_fallback", "sniffing_limited"]
+    kind: Literal["ai_fallback", "sniffing_limited"]
     message: str
     action: str
 
@@ -80,8 +87,10 @@ class GenerationResult(BaseModel):
     alternatives: list[RuleDraft] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     runtime_notices: list[RuntimeNotice] = Field(default_factory=list)
+    v3: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProjectionJobResult(BaseModel):
     projection: ProjectionResult
     runtime_notices: list[RuntimeNotice] = Field(default_factory=list)
+    debug: dict[str, Any] = Field(default_factory=dict)

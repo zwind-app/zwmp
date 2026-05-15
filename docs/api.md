@@ -24,8 +24,15 @@ Request:
   "options": {
     "force_refresh": false,
     "force_network_sniff": false,
-    "fast_mode": false,
-    "max_items": 30
+    "fast_mode": true,
+    "max_items": 30,
+    "sample_items": 8,
+    "max_candidate_groups": 6,
+    "validate_hypotheses": 5,
+    "validation_limit": 24,
+    "detail_probes": 3,
+    "scroll_steps": 3,
+    "desktop": false
   }
 }
 ```
@@ -41,8 +48,9 @@ Generation results include:
 - `alternatives`
 - `warnings`
 - `runtime_notices`
+- `v3`
 
-`runtime_notices` tells clients when ZWMP had to fall back from the complete path, for example AI fallback, browser runtime fallback, or limited network sniffing.
+`runtime_notices` tells clients when AI finalization fell back to the v3 local validation finalizer. Browser fallback is not supported in the v3 path; Playwright failures fail the job.
 
 ## Projection Jobs
 

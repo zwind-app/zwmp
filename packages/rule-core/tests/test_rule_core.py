@@ -41,6 +41,9 @@ def test_parse_supported_detail_fields():
         media_selector=video source
         play_button_selector=button.play
         selector_wait_timeout=1.5
+        network_sniff_timeout=5.0
+        network_sniff_idle_timeout=1.0
+        media_delivery=redirect
         """
     )
 
@@ -48,6 +51,8 @@ def test_parse_supported_detail_fields():
     assert "detail_url_selector=a.btn-play" in rendered
     assert "detail_url_mode=expand" in rendered
     assert "selector_wait_timeout=1.5" in rendered
+    assert "network_sniff_timeout=5.0" in rendered
+    assert "media_delivery=redirect" in rendered
 
 
 def test_media_type_matching_does_not_treat_image_as_video():

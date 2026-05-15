@@ -59,4 +59,5 @@ echo "  $LOG_DIR/backend.log"
 echo "  $LOG_DIR/frontend.log"
 echo "Press Ctrl-C to stop both services."
 
-wait -n "$BACKEND_PID" "$FRONTEND_PID"
+# wait -n "$BACKEND_PID" "$FRONTEND_PID"
+wait "$BACKEND_PID" "$FRONTEND_PID"

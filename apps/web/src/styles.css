@@ -175,6 +175,10 @@ a {
   accent-color: #2eb6a3;
 }
 
+.toggleOption.disabled {
+  opacity: 0.72;
+}
+
 .tooltip {
   display: inline-flex;
   align-items: center;
@@ -192,6 +196,22 @@ a {
 .numberOption input {
   height: 32px;
   padding: 0 8px;
+}
+
+.numberOption.compact {
+  margin-top: 8px;
+}
+
+.advancedOptions {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.advancedOptions summary {
+  cursor: pointer;
+  color: #e7c46a;
+  font-size: 13px;
 }
 
 .field span,
@@ -354,6 +374,66 @@ textarea {
   color: #d8d3ca;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.v3Summary {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.v3Summary strong {
+  color: #f6f0df;
+  font-size: 13px;
+}
+
+.v3Summary p {
+  margin: 0;
+  color: #cfc8bd;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.v3Metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.v3Metrics span,
+.validationCard {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+  border-radius: 7px;
+}
+
+.v3Metrics span {
+  padding: 4px 7px;
+  color: #aaa49b;
+  font-size: 11px;
+}
+
+.validationCard {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  padding: 8px;
+}
+
+.validationCard span,
+.validationCard small {
+  color: #aaa49b;
+  font-size: 11px;
+}
+
+.validationCard strong {
+  color: #2eb6a3;
+}
+
+.validationCard small {
+  grid-column: 1 / -1;
 }
 
 .warnings {

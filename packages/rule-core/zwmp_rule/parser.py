@@ -39,11 +39,13 @@ FIELD_ORDER = [
     "fast_mode",
     "force_desktop_mode",
     "selector_wait_timeout",
+    "network_sniff_timeout",
+    "network_sniff_idle_timeout",
 ]
 
 BOOL_FIELDS = {"force_network_sniff", "fast_mode", "force_desktop_mode", "detail_url_stop_when_media_found"}
-INT_FIELDS = {"media_url_ttl", "max_items", "detail_url_max_hops", "max_detail_concurrency"}
-FLOAT_FIELDS = {"selector_wait_timeout"}
+INT_FIELDS = {"max_items", "detail_url_max_hops", "max_detail_concurrency"}
+FLOAT_FIELDS = {"media_url_ttl", "selector_wait_timeout", "network_sniff_timeout", "network_sniff_idle_timeout"}
 
 
 def parse_rule(text: str) -> WebMediaRule:

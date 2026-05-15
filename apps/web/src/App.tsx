@@ -28,8 +28,15 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [forceRefresh, setForceRefresh] = useState(false);
   const [forceNetworkSniff, setForceNetworkSniff] = useState(false);
-  const [fastMode, setFastMode] = useState(false);
+  const [fastMode, setFastMode] = useState(true);
   const [maxItems, setMaxItems] = useState(30);
+  const [sampleItems, setSampleItems] = useState(8);
+  const [candidateGroups, setCandidateGroups] = useState(6);
+  const [validateHypotheses, setValidateHypotheses] = useState(5);
+  const [validationLimit, setValidationLimit] = useState(24);
+  const [detailProbes, setDetailProbes] = useState(3);
+  const [scrollSteps, setScrollSteps] = useState(3);
+  const [desktopMode, setDesktopMode] = useState(false);
   const [runtimeNotices, setRuntimeNotices] = useState<RuntimeNotice[]>([]);
 
   const generationResult = job?.result && "rule_text" in job.result ? (job.result as GenerationResult) : null;
@@ -73,7 +80,14 @@ export function App() {
       force_refresh: forceRefresh,
       force_network_sniff: forceNetworkSniff,
       fast_mode: fastMode,
-      max_items: maxItems
+      max_items: maxItems,
+      sample_items: sampleItems,
+      max_candidate_groups: candidateGroups,
+      validate_hypotheses: validateHypotheses,
+      validation_limit: validationLimit,
+      detail_probes: detailProbes,
+      scroll_steps: scrollSteps,
+      desktop: desktopMode
     });
     setJob(created);
   }
@@ -141,12 +155,23 @@ export function App() {
               label="Fast mode"
               checked={fastMode}
               onChange={setFastMode}
-              tooltip="Prefer plain HTTP loading. Faster, but less reliable for JavaScript-rendered sites."
+              tooltip="Emit v3 fast_mode=true in generated rules. The reference v3 runtime enforces this for generated rules."
+              disabled
             />
             <label className="numberOption">
               <span>Max items <Tooltip text="Limit how many listing items are parsed and previewed." /></span>
               <input type="number" min={1} max={200} value={maxItems} onChange={(event) => setMaxItems(Number(event.target.value) || 30)} />
             </label>
+            <details className="advancedOptions">
+              <summary>v3 advanced</summary>
+              <NumberOption label="Samples" value={sampleItems} min={1} max={20} onChange={setSampleItems} tooltip="Card samples collected per candidate group." />
+              <NumberOption label="Groups" value={candidateGroups} min={1} max={12} onChange={setCandidateGroups} tooltip="Top visual/repeated candidate groups to analyze." />
+              <NumberOption label="Hypotheses" value={validateHypotheses} min={1} max={8} onChange={setValidateHypotheses} tooltip="Rule hypotheses validated before finalization." />
+              <NumberOption label="Validation limit" value={validationLimit} min={1} max={100} onChange={setValidationLimit} tooltip="Candidate nodes inspected per selector during dry-run validation." />
+              <NumberOption label="Detail probes" value={detailProbes} min={0} max={12} onChange={setDetailProbes} tooltip="Detail/intermediate pages opened for each hypothesis." />
+              <NumberOption label="Scroll steps" value={scrollSteps} min={0} max={10} onChange={setScrollSteps} tooltip="Auto-scroll passes for lazy-loaded listing pages." />
+              <OptionToggle label="Desktop viewport" checked={desktopMode} onChange={setDesktopMode} tooltip="Use desktop viewport instead of the default mobile viewport." />
+            </details>
           </div>
           <button className="primary" onClick={generate} disabled={job?.status === "running"}>
             <RefreshCw size={16} />
@@ -157,6 +182,7 @@ export function App() {
           </div>
           <Status job={job} error={error} cacheHit={generationResult?.cache_hit} />
           <RuntimeNotices notices={generationResult?.runtime_notices ?? runtimeNotices} />
+          <V3Summary result={generationResult} />
           <DebugTimeline events={[...(job?.debug_events ?? []), ...projection.debug_events]} />
         </aside>
 
@@ -189,10 +215,19 @@ export function App() {
   );
 }
 
-function OptionToggle({ label, checked, onChange, tooltip }: { label: string; checked: boolean; onChange: (value: boolean) => void; tooltip: string }) {
+function NumberOption({ label, value, min, max, onChange, tooltip }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void; tooltip: string }) {
   return (
-    <label className="toggleOption">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className="numberOption compact">
+      <span>{label} <Tooltip text={tooltip} /></span>
+      <input type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value) || min)} />
+    </label>
+  );
+}
+
+function OptionToggle({ label, checked, onChange, tooltip, disabled = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; tooltip: string; disabled?: boolean }) {
+  return (
+    <label className={`toggleOption${disabled ? " disabled" : ""}`}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
       <Tooltip text={tooltip} />
     </label>
@@ -226,6 +261,31 @@ function RuntimeNotices({ notices }: { notices: RuntimeNotice[] }) {
           <strong>{notice.kind.replace("_", " ")}</strong>
           <p>{notice.message}</p>
           <small>{notice.action}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function V3Summary({ result }: { result: GenerationResult | null }) {
+  if (!result?.v3) return null;
+  const validations = result.v3.validations ?? [];
+  const groups = result.v3.evidence?.candidate_groups ?? [];
+  return (
+    <div className="v3Summary">
+      <strong>v3 evidence</strong>
+      <p>{result.v3.confidence ? `confidence ${result.v3.confidence}` : "confidence pending"} · {result.v3.used_ai ? "AI finalized" : "local finalized"}</p>
+      {result.v3.reasoning ? <p>{result.v3.reasoning}</p> : null}
+      <div className="v3Metrics">
+        <span>{groups.length} groups</span>
+        <span>{validations.length} validations</span>
+        <span>{result.v3.evidence?.lazy_load_observed ? "lazy load observed" : "no lazy signal"}</span>
+      </div>
+      {validations.slice(0, 3).map((validation) => (
+        <div className="validationCard" key={validation.hypothesis_id}>
+          <span>{validation.hypothesis_id}</span>
+          <strong>{Math.round(validation.quality_score * 100)}%</strong>
+          <small>{validation.listing.visible_candidate_count}/{validation.listing.candidate_count} visible · link {Math.round(validation.listing.link_coverage * 100)}%</small>
         </div>
       ))}
     </div>

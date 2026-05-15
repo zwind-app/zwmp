@@ -79,9 +79,9 @@ The backend reads these environment variables:
 - `ZWMP_MAX_HTML_BYTES`: maximum HTML response size. Default: `2000000`.
 - `ZWMP_PROXY_TTL_SECONDS`: intended proxy session TTL. Default: `900`.
 
-If `ZWMP_AI_PROVIDER` or `ZWMP_AI_API_KEY` is not configured, ZWMP uses a deterministic heuristic fallback for rule generation. The web UI shows this fallback explicitly and guides users to configure AI.
+If `ZWMP_AI_PROVIDER` or `ZWMP_AI_API_KEY` is not configured, ZWMP uses the v3 local hypotheses + validation finalizer. The web UI shows this AI fallback explicitly and guides users to configure AI.
 
-Playwright is optional at runtime. When Playwright or its browser runtime is unavailable, the backend falls back to plain HTTP loading. The web UI shows this fallback explicitly because browser-backed loading is the recommended complete mode for JavaScript-heavy sites, network sniffing, and playback interaction.
+Playwright is required at runtime. Generation and preview use the v3 browser-first workflow and fail with installation guidance when Chromium cannot launch.
 
 ## Development
 
@@ -115,11 +115,10 @@ This repository contains an early reference implementation:
 - media URL matcher
 - projection JSON model
 - FastAPI job API
-- browser-capable page loading with HTTP fallback
-- heuristic selector generation
-- optional AI provider boundary with structured validation
+- browser-first page evidence collection with Playwright
+- v3 local hypotheses and validation
+- optional AI hypotheses/finalization with local validation fallback
 - SQLite cache and generated rule persistence
 - React workbench for generation and resource preview
 
 Advanced runtime coverage is being expanded, especially multi-hop detail expansion, episode fan-out, network sniffing, and interactive playback.
-

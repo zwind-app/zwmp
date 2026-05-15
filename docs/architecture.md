@@ -5,10 +5,11 @@ ZWMP uses a direct, validation-first pipeline.
 ```text
 URL + media type
   -> SSRF guard
-  -> browser-capable page load
-  -> DOM and anchor heuristics
-  -> AI provider boundary, optional
-  -> rule draft validation by execution
+  -> v3 Playwright browser runtime
+  -> repeated item structure mining
+  -> optional AI hypotheses/finalization
+  -> local hypotheses + validation fallback
+  -> rule validation by execution
   -> rule text + projection preview
   -> generated rule persistence
 ```
@@ -19,10 +20,10 @@ The backend is a FastAPI application in `apps/api`.
 
 Core responsibilities:
 
-- load user-provided pages with Playwright when available, falling back to HTTP fetch
-- discover repeated item structures
+- load user-provided pages with the v3 Playwright browser-first runtime
+- discover repeated item structures from browser evidence
 - produce `.wm` rule drafts
-- validate drafts by executing them against the loaded page
+- validate drafts by executing them with the same v3 browser runtime
 - save generated rules and metadata
 - expose short-lived proxy access only for media discovered inside a preview session
 
@@ -39,7 +40,7 @@ Core responsibilities:
 
 ZWMP deliberately separates two caches:
 
-- Rule generation cache: cached by URL, media type, options, generator version, and schema version.
+- Rule generation cache: cached by URL, media type, v3 options, generator version, and schema version.
 - Projection preview: not long-term cached. It represents a fresh execution of the rule and may contain expiring media URLs.
 
 This is important because many media URLs contain short-lived signatures or require request headers observed during browser loading.
@@ -67,4 +68,3 @@ The backend treats input URLs as untrusted:
 - localhost, private, link-local, multicast, reserved, and metadata-service addresses are blocked
 - page loads have timeouts and maximum HTML size limits
 - proxy endpoints cannot fetch arbitrary URLs; they only serve media IDs discovered by a job
-

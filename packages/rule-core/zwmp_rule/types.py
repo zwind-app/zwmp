@@ -21,6 +21,7 @@ class Projection(StrEnum):
 class MediaDelivery(StrEnum):
     AUTO = "auto"
     PROXY = "proxy"
+    REDIRECT = "redirect"
 
 
 class WebMediaRule(BaseModel):
@@ -44,7 +45,7 @@ class WebMediaRule(BaseModel):
     media_selector: str | None = None
     projection: Projection = Projection.BY_ITEM
     media_type: MediaType = MediaType.VIDEO
-    media_url_ttl: int | None = None
+    media_url_ttl: float | None = None
     media_delivery: MediaDelivery = MediaDelivery.AUTO
     max_items: int | None = None
     force_network_sniff: bool = False
@@ -52,6 +53,8 @@ class WebMediaRule(BaseModel):
     fast_mode: bool = False
     force_desktop_mode: bool = False
     selector_wait_timeout: float = 0
+    network_sniff_timeout: float | None = None
+    network_sniff_idle_timeout: float | None = None
 
     @field_validator("candidate_selector")
     @classmethod
@@ -60,9 +63,16 @@ class WebMediaRule(BaseModel):
             raise ValueError("candidate_selector is required")
         return value.strip()
 
-    @field_validator("media_url_ttl", "max_items", "detail_url_max_hops", "max_detail_concurrency")
+    @field_validator("max_items", "detail_url_max_hops", "max_detail_concurrency")
     @classmethod
     def non_negative_int(cls, value: int | None) -> int | None:
+        if value is not None and value < 0:
+            raise ValueError("value must be non-negative")
+        return value
+
+    @field_validator("media_url_ttl", "selector_wait_timeout", "network_sniff_timeout", "network_sniff_idle_timeout")
+    @classmethod
+    def non_negative_float(cls, value: float | None) -> float | None:
         if value is not None and value < 0:
             raise ValueError("value must be non-negative")
         return value

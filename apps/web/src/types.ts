@@ -48,7 +48,7 @@ export interface ProjectionResult {
 }
 
 export interface RuntimeNotice {
-  kind: "ai_fallback" | "browser_fallback" | "sniffing_limited";
+  kind: "ai_fallback" | "sniffing_limited";
   message: string;
   action: string;
 }
@@ -68,6 +68,24 @@ export interface GenerationResult {
   cache_hit: boolean;
   warnings: string[];
   runtime_notices: RuntimeNotice[];
+  v3: {
+    used_ai?: boolean;
+    confidence?: string;
+    reasoning?: string;
+    detail_url_examples?: string[];
+    evidence?: {
+      title?: string | null;
+      lazy_load_observed?: boolean;
+      candidate_groups?: Array<{ group_id: string; selector: string; visible_count: number; score: number }>;
+    };
+    validations?: Array<{
+      hypothesis_id: string;
+      quality_score: number;
+      warnings: string[];
+      suggested_repairs: Record<string, unknown>;
+      listing: { candidate_count: number; visible_candidate_count: number; link_coverage: number; title_coverage: number; thumbnail_coverage: number };
+    }>;
+  };
 }
 
 export interface JobResponse {
@@ -78,5 +96,5 @@ export interface JobResponse {
   progress: number;
   error?: string | null;
   debug_events: DebugEvent[];
-  result?: GenerationResult | { projection: ProjectionResult; runtime_notices: RuntimeNotice[] } | null;
+  result?: GenerationResult | { projection: ProjectionResult; runtime_notices: RuntimeNotice[]; debug?: Record<string, unknown> } | null;
 }

@@ -38,17 +38,17 @@ media_delivery=auto
 projection=by-item
 max_items=30
 force_network_sniff=false
-play_button_selector=button[aria-label*=Play]
-fast_mode=false
+fast_mode=true
 force_desktop_mode=false
 selector_wait_timeout=1.5
+network_sniff_timeout=5.0
+network_sniff_idle_timeout=1.0
 ```
 
 Runtime support levels:
 
-- Stable: `source`, `candidate_selector`, `candidate_link_selector`, `title_selector`, `thumbnail_selector`, `duration_selector`, `projection`, `media_type`, `media_url_ttl`, `media_delivery`, `max_items`, `force_network_sniff`, `fast_mode`, `force_desktop_mode`.
-- Implemented baseline: `detail_url_selector`, `detail_url_mode`, `max_detail_concurrency`, `media_selector`, `play_button_selector`, `selector_wait_timeout`.
-- Parsed and preserved for compatibility: numbered multi-hop fields such as `detail_url_selector_2` and `detail_url_selector_3`. Full multi-hop expansion is still being hardened in the reference runtime.
+- Stable v3 generation: `source`, `candidate_selector`, `candidate_link_selector`, `detail_url_selector`, `detail_url_mode`, numbered detail hops, `detail_url_max_hops`, `detail_url_stop_when_media_found`, `max_detail_concurrency`, `title_selector`, `thumbnail_selector`, `duration_selector`, `projection`, `media_type`, `media_url_ttl`, `media_delivery`, `max_items`, `force_network_sniff`, `fast_mode`, `force_desktop_mode`, `selector_wait_timeout`, `network_sniff_timeout`, `network_sniff_idle_timeout`.
+- Parsed for compatibility but intentionally disabled in v3 output: `media_selector`, `play_button_selector`.
 
 ## Required Fields
 
@@ -64,6 +64,7 @@ Runtime support levels:
 - `detail_url_max_hops=3`
 - `detail_url_stop_when_media_found=true`
 - `max_detail_concurrency=3`
+- v3 generated rules force `fast_mode=true`
 - boolean fields default to `false` unless documented otherwise
 
 ## Media Types
@@ -102,4 +103,3 @@ The preview API returns:
 - `media`: discovered media resources.
 - `debug_events`: phase-by-phase generation information.
 - `warnings`: non-fatal issues and next-step hints.
-

@@ -79,9 +79,9 @@ max_items=30
 - `ZWMP_MAX_HTML_BYTES`：最大 HTML 响应大小。默认：`2000000`。
 - `ZWMP_PROXY_TTL_SECONDS`：预期 proxy session TTL。默认：`900`。
 
-如果没有配置 `ZWMP_AI_PROVIDER` 或 `ZWMP_AI_API_KEY`，ZWMP 会自动使用 deterministic heuristic fallback 来生成规则。Web UI 会显式提示这个 fallback，并引导用户配置 AI。
+如果没有配置 `ZWMP_AI_PROVIDER` 或 `ZWMP_AI_API_KEY`，ZWMP 会使用 v3 local hypotheses + validation finalizer。Web UI 会显式提示这个 AI fallback，并引导用户配置 AI。
 
-Playwright 在运行时是可选的。如果没有安装 Playwright 或浏览器 runtime，后端会 fallback 到普通 HTTP 加载。Web UI 会显式提示这个 fallback，因为对于依赖 JavaScript 渲染的网站、network sniffing 和播放交互，browser-backed loading 才是推荐的完整态。
+Playwright 是运行时硬要求。生成和预览都使用 v3 browser-first workflow；如果 Chromium 无法启动，任务会失败并提示安装方式。
 
 ## 开发
 
@@ -115,11 +115,10 @@ npm run build
 - media URL matcher
 - projection JSON model
 - FastAPI job API
-- 支持浏览器的页面加载，并带普通 HTTP fallback
-- heuristic selector generation
-- 带结构化校验的可选 AI provider 边界
+- 基于 Playwright 的 browser-first 页面 evidence 收集
+- v3 local hypotheses 和 validation
+- 可选 AI hypotheses/finalization，并带 local validation fallback
 - SQLite cache 和 generated rule 持久化
 - React 规则生成与资源预览工作台
 
 高级 runtime 覆盖还在继续增强，尤其是多跳 detail expansion、剧集 fan-out、network sniffing 和交互式播放。
-
