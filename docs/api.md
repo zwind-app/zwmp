@@ -32,6 +32,18 @@ Request:
 
 The job response includes status, phase, progress, debug events, and a result when complete.
 
+Generation results include:
+
+- `rule_text`
+- `site_profile`
+- `projection_preview`
+- `cache_hit`
+- `alternatives`
+- `warnings`
+- `runtime_notices`
+
+`runtime_notices` tells clients when ZWMP had to fall back from the complete path, for example AI fallback, browser runtime fallback, or limited network sniffing.
+
 ## Projection Jobs
 
 ```text
@@ -47,6 +59,8 @@ Request:
 }
 ```
 
+Projection results include `projection` and `runtime_notices`.
+
 ## Rules
 
 ```text
@@ -61,4 +75,3 @@ GET /api/proxy/{session_id}/{media_id}
 ```
 
 This endpoint only proxies media discovered by the matching job/session.
-

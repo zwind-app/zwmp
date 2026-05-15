@@ -47,6 +47,12 @@ export interface ProjectionResult {
   warnings: string[];
 }
 
+export interface RuntimeNotice {
+  kind: "ai_fallback" | "browser_fallback" | "sniffing_limited";
+  message: string;
+  action: string;
+}
+
 export interface GenerationResult {
   rule_id: string;
   rule_text: string;
@@ -61,6 +67,7 @@ export interface GenerationResult {
   projection_preview: ProjectionResult;
   cache_hit: boolean;
   warnings: string[];
+  runtime_notices: RuntimeNotice[];
 }
 
 export interface JobResponse {
@@ -71,6 +78,5 @@ export interface JobResponse {
   progress: number;
   error?: string | null;
   debug_events: DebugEvent[];
-  result?: GenerationResult | { projection: ProjectionResult } | null;
+  result?: GenerationResult | { projection: ProjectionResult; runtime_notices: RuntimeNotice[] } | null;
 }
-

@@ -15,14 +15,20 @@ class LoadedPage:
     final_url: str
     html: str
     network_media: list[str]
+    browser_used: bool = False
+    fallback_reason: str | None = None
 
 
 class PageFetcher:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    async def load(self, url: str, force_desktop: bool = True) -> LoadedPage:
+    async def load(self, url: str, force_desktop: bool = True, fast_mode: bool = False) -> LoadedPage:
         assert_public_http_url(url)
+        if fast_mode:
+            page = await asyncio.to_thread(self._load_with_urllib, url, force_desktop)
+            page.fallback_reason = "Fast mode was requested; used plain HTTP loading instead of the browser runtime."
+            return page
         playwright_page = await self._load_with_playwright(url, force_desktop)
         if playwright_page:
             return playwright_page
@@ -57,7 +63,7 @@ class PageFetcher:
                 raise RuntimeError("page HTML exceeded maximum size")
             final_url = page.url
             await context.close()
-            return LoadedPage(requested_url=url, final_url=final_url, html=html, network_media=media_urls)
+            return LoadedPage(requested_url=url, final_url=final_url, html=html, network_media=media_urls, browser_used=True)
         except Exception:
             return None
         finally:
@@ -80,7 +86,14 @@ class PageFetcher:
                 raise RuntimeError("page HTML exceeded maximum size")
             charset = response.headers.get_content_charset() or "utf-8"
             html = raw.decode(charset, errors="replace")
-            return LoadedPage(requested_url=url, final_url=response.geturl(), html=html, network_media=[])
+            return LoadedPage(
+                requested_url=url,
+                final_url=response.geturl(),
+                html=html,
+                network_media=[],
+                browser_used=False,
+                fallback_reason="Playwright browser runtime is unavailable or page loading failed; used plain HTTP loading.",
+            )
 
 
 def desktop_user_agent() -> str:
@@ -95,4 +108,3 @@ def mobile_user_agent() -> str:
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
         "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
     )
-

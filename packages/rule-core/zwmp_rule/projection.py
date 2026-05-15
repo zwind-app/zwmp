@@ -21,9 +21,7 @@ def build_projection_tree(
     for entry in media:
         media_by_item.setdefault(entry.item_id, []).append(entry)
 
-    root: list[ProjectionNode] = [
-        ProjectionNode(id="items-json", name="items.json", kind="file"),
-    ]
+    root: list[ProjectionNode] = []
     if mode == Projection.FLAT:
         for item in items:
             for index, entry in enumerate(media_by_item.get(item.id, []), start=1):
@@ -41,17 +39,10 @@ def build_projection_tree(
         return root
 
     for item in items:
-        children = [
-            ProjectionNode(id=f"{item.id}-item-json", name="item.json", kind="file", item_id=item.id),
-            ProjectionNode(id=f"{item.id}-detail-url", name="detail.url", kind="file", item_id=item.id),
-        ]
-        if item.thumbnail_url:
-            children.append(
-                ProjectionNode(id=f"{item.id}-thumbnail", name="thumbnail.url", kind="file", item_id=item.id)
-            )
+        children = []
         for index, entry in enumerate(media_by_item.get(item.id, []), start=1):
             ext = entry.extension or "url"
-            name = f"media.{ext}" if index == 1 else f"media-{index}.{ext}"
+            name = f"{safe_name(item.title, item.id)}.{ext}" if index == 1 else f"{safe_name(item.title, item.id)}-{index}.{ext}"
             children.append(
                 ProjectionNode(
                     id=f"node-{entry.id}",
@@ -59,6 +50,15 @@ def build_projection_tree(
                     kind="file",
                     item_id=item.id,
                     media_id=entry.id,
+                )
+            )
+        if not children:
+            children.append(
+                ProjectionNode(
+                    id=f"{item.id}-pending",
+                    name="Media not found yet",
+                    kind="file",
+                    item_id=item.id,
                 )
             )
         root.append(
@@ -71,4 +71,3 @@ def build_projection_tree(
             )
         )
     return root
-

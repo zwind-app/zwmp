@@ -34,3 +34,4 @@ data/cache/*
 data/generated-rules/**/*.wm
 data/generated-rules/**/*.json
 !data/generated-rules/.gitkeep
+.logs/

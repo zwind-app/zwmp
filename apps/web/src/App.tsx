@@ -1,7 +1,7 @@
-import { Clipboard, ExternalLink, FileCode2, FolderTree, Github, Play, RefreshCw, Smartphone } from "lucide-react";
+import { Clipboard, ExternalLink, FileCode2, FolderTree, Github, Info, Play, RefreshCw, Smartphone } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createGenerationJob, createProjectionJob, getGenerationJob, getProjectionJob } from "./api";
-import type { GenerationResult, JobResponse, MediaType, ProjectionItem, ProjectionMedia, ProjectionNode, ProjectionResult } from "./types";
+import type { GenerationResult, JobResponse, MediaType, ProjectionItem, ProjectionMedia, ProjectionNode, ProjectionResult, RuntimeNotice } from "./types";
 
 const sampleRule = `source=https://example.com/videos
 candidate_selector=a:has(img)
@@ -26,6 +26,11 @@ export function App() {
   const [projection, setProjection] = useState<ProjectionResult>(emptyProjection);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [forceRefresh, setForceRefresh] = useState(false);
+  const [forceNetworkSniff, setForceNetworkSniff] = useState(false);
+  const [fastMode, setFastMode] = useState(false);
+  const [maxItems, setMaxItems] = useState(30);
+  const [runtimeNotices, setRuntimeNotices] = useState<RuntimeNotice[]>([]);
 
   const generationResult = job?.result && "rule_text" in job.result ? (job.result as GenerationResult) : null;
   const selectedItem = projection.items.find((item) => item.id === selectedItemId) ?? projection.items[0] ?? null;
@@ -42,9 +47,11 @@ export function App() {
             const result = next.result as GenerationResult;
             setRuleText(result.rule_text);
             setProjection(result.projection_preview);
+            setRuntimeNotices(result.runtime_notices ?? []);
             setSelectedItemId(result.projection_preview.items[0]?.id ?? null);
           } else if ("projection" in next.result) {
             setProjection(next.result.projection);
+            setRuntimeNotices(next.result.runtime_notices ?? []);
             setSelectedItemId(next.result.projection.items[0]?.id ?? null);
           }
         }
@@ -61,7 +68,13 @@ export function App() {
   async function generate() {
     setError(null);
     setProjection(emptyProjection);
-    const created = await createGenerationJob(url, mediaType);
+    setRuntimeNotices([]);
+    const created = await createGenerationJob(url, mediaType, {
+      force_refresh: forceRefresh,
+      force_network_sniff: forceNetworkSniff,
+      fast_mode: fastMode,
+      max_items: maxItems
+    });
     setJob(created);
   }
 
@@ -111,6 +124,30 @@ export function App() {
               ))}
             </div>
           </div>
+          <div className="options">
+            <OptionToggle
+              label="Force refresh"
+              checked={forceRefresh}
+              onChange={setForceRefresh}
+              tooltip="Ignore rule generation cache and analyze the URL again."
+            />
+            <OptionToggle
+              label="Network sniff"
+              checked={forceNetworkSniff}
+              onChange={setForceNetworkSniff}
+              tooltip="Capture browser network requests to find preloaded media URLs. Requires Playwright for full results."
+            />
+            <OptionToggle
+              label="Fast mode"
+              checked={fastMode}
+              onChange={setFastMode}
+              tooltip="Prefer plain HTTP loading. Faster, but less reliable for JavaScript-rendered sites."
+            />
+            <label className="numberOption">
+              <span>Max items <Tooltip text="Limit how many listing items are parsed and previewed." /></span>
+              <input type="number" min={1} max={200} value={maxItems} onChange={(event) => setMaxItems(Number(event.target.value) || 30)} />
+            </label>
+          </div>
           <button className="primary" onClick={generate} disabled={job?.status === "running"}>
             <RefreshCw size={16} />
             Generate
@@ -119,6 +156,7 @@ export function App() {
             <div style={progressStyle} />
           </div>
           <Status job={job} error={error} cacheHit={generationResult?.cache_hit} />
+          <RuntimeNotices notices={generationResult?.runtime_notices ?? runtimeNotices} />
           <DebugTimeline events={[...(job?.debug_events ?? []), ...projection.debug_events]} />
         </aside>
 
@@ -138,8 +176,8 @@ export function App() {
 
         <section className="previewPane">
           <div className="paneHeader">
-            <span><FolderTree size={18} /> Projection</span>
-            <span className="meta">{projection.items.length} items / {projection.media.length} media</span>
+            <span><FolderTree size={18} /> Resources</span>
+            <span className="meta">{projection.items.length} items / {projection.media.length} resources</span>
           </div>
           <div className="previewGrid">
             <Tree nodes={projection.tree} onSelect={setSelectedItemId} selectedItemId={selectedItem?.id ?? null} />
@@ -151,12 +189,45 @@ export function App() {
   );
 }
 
+function OptionToggle({ label, checked, onChange, tooltip }: { label: string; checked: boolean; onChange: (value: boolean) => void; tooltip: string }) {
+  return (
+    <label className="toggleOption">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <span>{label}</span>
+      <Tooltip text={tooltip} />
+    </label>
+  );
+}
+
+function Tooltip({ text }: { text: string }) {
+  return (
+    <span className="tooltip" title={text} aria-label={text}>
+      <Info size={13} />
+    </span>
+  );
+}
+
 function Status({ job, error, cacheHit }: { job: JobResponse | null; error: string | null; cacheHit?: boolean }) {
   return (
     <div className="status">
       <strong>{job ? `${job.status} · ${job.phase}` : "idle"}</strong>
       <span>{cacheHit ? "cache hit" : job ? `${Math.round(job.progress * 100)}%` : "ready"}</span>
       {error ? <p>{error}</p> : null}
+    </div>
+  );
+}
+
+function RuntimeNotices({ notices }: { notices: RuntimeNotice[] }) {
+  if (!notices.length) return null;
+  return (
+    <div className="runtimeNotices">
+      {notices.map((notice) => (
+        <div className="notice" key={`${notice.kind}-${notice.message}`}>
+          <strong>{notice.kind.replace("_", " ")}</strong>
+          <p>{notice.message}</p>
+          <small>{notice.action}</small>
+        </div>
+      ))}
     </div>
   );
 }
@@ -176,7 +247,7 @@ function DebugTimeline({ events }: { events: { phase: string; message: string }[
 }
 
 function Tree({ nodes, selectedItemId, onSelect }: { nodes: ProjectionNode[]; selectedItemId: string | null; onSelect: (id: string) => void }) {
-  if (!nodes.length) return <div className="empty">Generated projection will appear here.</div>;
+  if (!nodes.length) return <div className="empty">Parsed resources will appear here.</div>;
   return (
     <div className="tree">
       {nodes.map((node) => (
@@ -220,4 +291,3 @@ function MediaPreview({ media, proxyUrl }: { media: ProjectionMedia; proxyUrl: s
   if (media.type === "video" || media.type === "all") return <video controls src={src} />;
   return <a href={src}>{src}</a>;
 }
-

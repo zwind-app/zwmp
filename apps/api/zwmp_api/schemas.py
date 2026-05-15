@@ -43,6 +43,12 @@ class RuleDraft(BaseModel):
     reason: str
 
 
+class RuntimeNotice(BaseModel):
+    kind: Literal["ai_fallback", "browser_fallback", "sniffing_limited"]
+    message: str
+    action: str
+
+
 class JobResponse(BaseModel):
     id: str
     type: Literal["generation", "projection"]
@@ -73,8 +79,9 @@ class GenerationResult(BaseModel):
     cache_hit: bool = False
     alternatives: list[RuleDraft] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    runtime_notices: list[RuntimeNotice] = Field(default_factory=list)
 
 
 class ProjectionJobResult(BaseModel):
     projection: ProjectionResult
-
+    runtime_notices: list[RuntimeNotice] = Field(default_factory=list)

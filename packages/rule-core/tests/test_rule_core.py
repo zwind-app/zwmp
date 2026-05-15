@@ -78,6 +78,6 @@ def test_build_projection_tree_by_item():
 
     tree = build_projection_tree("by-item", items, media)
 
-    assert tree[0].name == "items.json"
-    assert tree[1].kind == "directory"
-    assert tree[1].children[-1].name == "media.mp4"
+    assert tree[0].name == "Episode 1"
+    assert tree[0].kind == "directory"
+    assert tree[0].children[-1].name == "Episode 1.mp4"
