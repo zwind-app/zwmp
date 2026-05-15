@@ -1,4 +1,5 @@
 from zwmp_api import v3_engine as v3
+from zwmp_api.v3_adapter import projection_from_debug
 
 
 def test_v3_detail_hop_policy_expands_episode_links():
@@ -32,3 +33,22 @@ def test_v3_sanitize_removes_disabled_player_fields():
     assert "play_button_selector" not in rule
     assert rule["media_delivery"] == "redirect"
     assert rule["fast_mode"] is True
+
+
+def test_preview_projection_uses_detail_probe_media():
+    probe = v3.DetailProbe(item_title="Episode One", item_url="https://example.com/watch/1")
+    probe.final_url = "https://example.com/watch/1"
+    probe.dom_media = [{"url": "https://cdn.example.com/one.mp4", "kind": "video", "source": "dom"}]
+
+    projection = projection_from_debug(
+        [{"title": "Episode One", "url": "https://example.com/watch/1"}],
+        [],
+        [],
+        {"media_type": "video", "projection": "by-item"},
+        [probe],
+    )
+
+    assert len(projection.items) == 1
+    assert len(projection.media) == 1
+    assert projection.items[0].status == "resolved"
+    assert projection.media[0].url == "https://cdn.example.com/one.mp4"

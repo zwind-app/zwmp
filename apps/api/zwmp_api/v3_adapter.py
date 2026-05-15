@@ -92,7 +92,8 @@ def preview_v3(rule_text: str, settings: Settings) -> dict[str, Any]:
             user_agent=COMMON_USER_AGENT,
         )
         items, events, diagnoses, rule = v3.debug_rule(args)
-        projection = projection_from_debug(items, events, diagnoses, rule)
+        probes = preview_detail_probes(items, rule, settings)
+        projection = projection_from_debug(items, events, diagnoses, rule, probes)
         return {
             "projection": projection,
             "site_profile": SiteProfile(
@@ -108,6 +109,7 @@ def preview_v3(rule_text: str, settings: Settings) -> dict[str, Any]:
                 "events": [v3.to_plain(event) for event in events],
                 "diagnoses": diagnoses,
                 "items": items,
+                "detail_probes": [v3.to_plain(probe) for probe in probes],
             },
             "runtime_notices": [],
         }
@@ -192,7 +194,13 @@ def projection_from_inference(result: Any, rule: dict[str, Any]) -> ProjectionRe
     )
 
 
-def projection_from_debug(items_raw: list[dict[str, str]], events: list[Any], diagnoses: list[str], rule: dict[str, Any]) -> ProjectionResult:
+def projection_from_debug(
+    items_raw: list[dict[str, str]],
+    events: list[Any],
+    diagnoses: list[str],
+    rule: dict[str, Any],
+    probes: list[Any] | None = None,
+) -> ProjectionResult:
     items: list[ProjectionItem] = []
     media: list[ProjectionMedia] = []
     media_type = MediaType(rule.get("media_type", "video"))
@@ -215,6 +223,39 @@ def projection_from_debug(items_raw: list[dict[str, str]], events: list[Any], di
             item.media_ids.append(media_id)
             item.status = "resolved"
         items.append(item)
+    item_by_url = {item.detail_url: item for item in items if item.detail_url}
+    for probe in probes or []:
+        item = item_by_url.get(probe.item_url) or item_by_url.get(probe.final_url)
+        if item is None:
+            item = ProjectionItem(
+                id=f"item-{len(items) + 1}",
+                title=probe.item_title or probe.item_url or f"Item {len(items) + 1}",
+                detail_url=probe.final_url or probe.item_url,
+                status="pending",
+            )
+            items.append(item)
+            if item.detail_url:
+                item_by_url[item.detail_url] = item
+        for row in primary_media_rows_for_rule(probe, str(media_type)):
+            url = str(row.get("url") or row.get("src") or "")
+            if not url or any(existing.item_id == item.id and existing.url == url for existing in media):
+                continue
+            media_id = f"media-{len(media) + 1}"
+            media.append(
+                ProjectionMedia(
+                    id=media_id,
+                    item_id=item.id,
+                    url=url,
+                    type=media_type,
+                    extension=extension_for_url(url) or "url",
+                    delivery="direct",
+                )
+            )
+            item.media_ids.append(media_id)
+            item.status = "resolved"
+        if item.status != "resolved" and probe.status == "ok":
+            item.status = "needs-interaction"
+            item.warning = "No primary media was discovered during v3 detail probing."
     return ProjectionResult(
         tree=build_projection_tree(rule.get("projection", "by-item"), items, media),
         items=items,
@@ -230,6 +271,29 @@ def projection_from_debug(items_raw: list[dict[str, str]], events: list[Any], di
         ],
         warnings=diagnoses,
     )
+
+
+def preview_detail_probes(items: list[dict[str, str]], rule: dict[str, Any], settings: Settings) -> list[Any]:
+    probe_limit = min(len(items), max(0, settings.probe_items))
+    if probe_limit == 0:
+        return []
+    runtime = v3.BrowserRuntime(v3.configured_proxy_url(), headless=True)
+    try:
+        return [
+            v3.probe_detail_page(
+                runtime,
+                {"href": item.get("url", ""), "title": item.get("title", "")},
+                rule,
+                user_agent=COMMON_USER_AGENT,
+                timeout=settings.request_timeout_seconds,
+                click_play=False,
+                desktop=bool(rule.get("force_desktop_mode")),
+            )
+            for item in items[:probe_limit]
+            if item.get("url") and not is_media_url(item.get("url", ""), MediaType(rule.get("media_type", "video")))
+        ]
+    finally:
+        runtime.close()
 
 
 def primary_media_rows_for_rule(probe: Any, media_type: str) -> list[dict[str, Any]]:
