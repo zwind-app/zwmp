@@ -60,20 +60,25 @@ def generate_v3(url: str, media_type: str, options: Any, settings: Settings) -> 
         reasoning=result.reasoning,
         detail_url_examples=result.detail_url_examples,
     )
-    preview = projection_from_inference(result, rule)
+    preview = execute_rule_preview(rendered, settings)
     return {
         "rule": rule,
         "rule_text": rendered,
         "site_profile": site_profile_from_inference(result, media_type),
-        "projection": preview,
+        "projection": preview["projection"],
         "v3": v3.json_output(result),
         "runtime_notices": runtime_notices(result.used_ai),
         "alternatives": alternatives_from_inference(result),
-        "warnings": warnings_from_inference(result),
+        "warnings": [*warnings_from_inference(result), *preview["projection"].warnings],
     }
 
 
 def preview_v3(rule_text: str, settings: Settings) -> dict[str, Any]:
+    return execute_rule_preview(rule_text, settings)
+
+
+def execute_rule_preview(rule_text: str, settings: Settings) -> dict[str, Any]:
+    initial_rule = v3.parse_rule_text(rule_text, "", max_items=500)
     with tempfile.NamedTemporaryFile("w", suffix=".wm", encoding="utf-8", delete=False) as file:
         file.write(rule_text)
         path = Path(file.name)
@@ -83,7 +88,7 @@ def preview_v3(rule_text: str, settings: Settings) -> dict[str, Any]:
             command="debug",
             rule_file=str(path),
             json=True,
-            limit=settings.max_items,
+            limit=rule_preview_limit(initial_rule, settings),
             timeout=settings.request_timeout_seconds,
             desktop=False,
             headful=False,
@@ -115,6 +120,13 @@ def preview_v3(rule_text: str, settings: Settings) -> dict[str, Any]:
         }
     finally:
         path.unlink(missing_ok=True)
+
+
+def rule_preview_limit(rule: dict[str, Any], settings: Settings) -> int:
+    try:
+        return max(1, int(rule.get("max_items") or settings.max_items))
+    except (TypeError, ValueError):
+        return settings.max_items
 
 
 def projection_from_inference(result: Any, rule: dict[str, Any]) -> ProjectionResult:
@@ -274,9 +286,9 @@ def projection_from_debug(
 
 
 def preview_detail_probes(items: list[dict[str, str]], rule: dict[str, Any], settings: Settings) -> list[Any]:
-    probe_limit = min(len(items), max(0, settings.probe_items))
-    if probe_limit == 0:
+    if not items:
         return []
+    media_type = MediaType(v3.normalize_media_type(rule.get("media_type")))
     runtime = v3.BrowserRuntime(v3.configured_proxy_url(), headless=True)
     try:
         return [
@@ -289,8 +301,8 @@ def preview_detail_probes(items: list[dict[str, str]], rule: dict[str, Any], set
                 click_play=False,
                 desktop=bool(rule.get("force_desktop_mode")),
             )
-            for item in items[:probe_limit]
-            if item.get("url") and not is_media_url(item.get("url", ""), MediaType(rule.get("media_type", "video")))
+            for item in items
+            if item.get("url") and not is_media_url(item.get("url", ""), media_type)
         ]
     finally:
         runtime.close()
