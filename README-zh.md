@@ -67,6 +67,7 @@ max_items=30
 
 后端读取这些环境变量：
 
+- `ZWMP_CONFIG`：统一 JSON 配置文件。默认：`config/zwmp.config.json`。
 - `ZWMP_DATA_DIR`：运行数据根目录。默认：`data`。
 - `ZWMP_CACHE_DB`：SQLite 缓存路径。默认：`data/cache/zwmp.sqlite3`。
 - `ZWMP_RULE_OUTPUT_DIR`：生成规则输出目录。默认：`data/generated-rules`。
@@ -77,11 +78,16 @@ max_items=30
 - `ZWMP_PROBE_ITEMS`：默认探测的候选详情页数量。默认：`3`。
 - `ZWMP_REQUEST_TIMEOUT`：页面请求超时时间，单位秒。默认：`12`。
 - `ZWMP_MAX_HTML_BYTES`：最大 HTML 响应大小。默认：`2000000`。
-- `ZWMP_PROXY_TTL_SECONDS`：预期 proxy session TTL。默认：`900`。
 
-如果没有配置 `ZWMP_AI_PROVIDER` 或 `ZWMP_AI_API_KEY`，ZWMP 会使用 v3 local hypotheses + validation finalizer。Web UI 会显式提示这个 AI fallback，并引导用户配置 AI。
+站点引导文案、SEO metadata、公开链接、AI providers 和 AI quota 都配置在 `config/zwmp.config.json`。如果该文件配置了 AI providers，会覆盖旧的 env AI 配置。如果没有可用 provider、quota 用尽或 provider ratelimited，ZWMP 会 fallback 到 v3 local hypotheses + validation finalizer，并在 Web UI 显式提示。
+
+默认 AI quota 是 global：每个 `zwmp_device_id` cookie 每天最多 2 次 AI 生成。provider 可以覆盖 global quota，支持 `ip` / `device_id` 维度和 `hour` / `day` 时间窗口。
+
+生成 cache 是强制的，key 基于 normalized URL pattern、媒体类型和 generator version。URL 查询参数会保留参数名但移除参数值。cache 没有 TTL；管理员可以手动删除 cache 记录或 generated rule 文件。
 
 Playwright 是运行时硬要求。生成和预览都使用 v3 browser-first workflow；如果 Chromium 无法启动，任务会失败并提示安装方式。
+
+媒体预览只使用浏览器直连 URL。ZWMP 不提供后端媒体 proxy endpoint。
 
 ## 开发
 
@@ -107,6 +113,12 @@ pytest
 npm run build
 ```
 
+导出 generated rules，用于 self-hosted 审查或未来 ZWMP-Hub 整理：
+
+```bash
+./scripts/export_rules.py --output exports/zwmp-rules
+```
+
 ## 当前状态
 
 仓库目前包含早期参考实现：
@@ -122,3 +134,7 @@ npm run build
 - React 规则生成与资源预览工作台
 
 高级 runtime 覆盖还在继续增强，尤其是多跳 detail expansion、剧集 fan-out、network sniffing 和交互式播放。
+
+## License
+
+ZWMP 软件实现采用 AGPL-3.0-or-later。ZWMP Rule Specification 采用 CC BY 4.0。

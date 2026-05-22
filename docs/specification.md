@@ -1,5 +1,7 @@
 # ZWMP Rule Specification
 
+License: CC BY 4.0.
+
 ZWMP rules are UTF-8 `.wm` text files using `key=value` lines. Comments start with `#`; blank lines are ignored.
 
 ## Minimal Rule

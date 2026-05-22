@@ -1,0 +1,36 @@
+{
+  "site": {
+    "default_locale": "en",
+    "supported_locales": ["en", "zh"],
+    "links": {
+      "github": "https://github.com/zwind-app/zwmp",
+      "zwind": "https://apps.apple.com/us/app/zwind-webdav-server-player/id6755239096"
+    },
+    "seo": {
+      "en": {
+        "title": "ZWMP - Web Media Projection Rule Generator",
+        "description": "Generate, validate, preview, and share open Web Media Projection rules for video, audio, and image resources.",
+        "keywords": ["ZWMP", "Web Media Projection", "WebDAV media", "video rule generator", "open source media parser"]
+      },
+      "zh": {
+        "title": "ZWMP - Web Media Projection 规则生成器",
+        "description": "生成、校验、预览和分享开放的 Web Media Projection 规则，把网页媒体资源投影为目录视图。",
+        "keywords": ["ZWMP", "Web Media Projection", "WebDAV 媒体", "视频规则生成器", "开源媒体解析"]
+      }
+    },
+    "guidance": {
+      "en": "Enter a listing URL to generate a .wm rule, or paste an existing rule and preview the projected resources directly.",
+      "zh": "输入列表页 URL 生成 .wm 规则，或直接粘贴已有规则并预览投影后的媒体资源。"
+    }
+  },
+  "ai": {
+    "global_quota": [
+      {
+        "scope": "device_id",
+        "window": "day",
+        "limit": 2
+      }
+    ],
+    "providers": []
+  }
+}

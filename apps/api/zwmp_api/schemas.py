@@ -11,7 +11,6 @@ JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 
 
 class GenerationOptions(BaseModel):
-    force_refresh: bool = False
     force_network_sniff: bool = False
     fast_mode: bool = True
     max_items: int | None = None
@@ -32,7 +31,6 @@ class GenerationRequest(BaseModel):
 
 class ProjectionRequest(BaseModel):
     rule_text: str | None = None
-    rule_id: str | None = None
 
 
 class SiteProfile(BaseModel):
@@ -51,7 +49,7 @@ class RuleDraft(BaseModel):
 
 
 class RuntimeNotice(BaseModel):
-    kind: Literal["ai_fallback", "sniffing_limited"]
+    kind: Literal["ai_fallback", "ai_quota", "sniffing_limited"]
     message: str
     action: str
 
@@ -94,3 +92,26 @@ class ProjectionJobResult(BaseModel):
     projection: ProjectionResult
     runtime_notices: list[RuntimeNotice] = Field(default_factory=list)
     debug: dict[str, Any] = Field(default_factory=dict)
+
+
+class PublicConfig(BaseModel):
+    site: dict[str, Any]
+
+
+class ShareCreateRequest(BaseModel):
+    rule_text: str
+    projection: ProjectionResult
+    site_profile: SiteProfile | None = None
+    runtime_notices: list[RuntimeNotice] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ShareResponse(BaseModel):
+    id: str
+    url_path: str
+    rule_text: str
+    projection: ProjectionResult
+    site_profile: SiteProfile | None = None
+    runtime_notices: list[RuntimeNotice] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    created_at: str

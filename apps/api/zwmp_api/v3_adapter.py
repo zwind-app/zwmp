@@ -73,11 +73,11 @@ def generate_v3(url: str, media_type: str, options: Any, settings: Settings) -> 
     }
 
 
-def preview_v3(rule_text: str, settings: Settings) -> dict[str, Any]:
-    return execute_rule_preview(rule_text, settings)
+def preview_v3(rule_text: str, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
+    return execute_rule_preview(rule_text, settings, progress)
 
 
-def execute_rule_preview(rule_text: str, settings: Settings) -> dict[str, Any]:
+def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
     initial_rule = v3.parse_rule_text(rule_text, "", max_items=500)
     with tempfile.NamedTemporaryFile("w", suffix=".wm", encoding="utf-8", delete=False) as file:
         file.write(rule_text)
@@ -96,8 +96,14 @@ def execute_rule_preview(rule_text: str, settings: Settings) -> dict[str, Any]:
             no_color=True,
             user_agent=COMMON_USER_AGENT,
         )
+        if progress:
+            progress("preview-listing", 0.08, "Loading source page and resolving rule candidates")
         items, events, diagnoses, rule = v3.debug_rule(args)
-        probes = preview_detail_probes(items, rule, settings)
+        if progress:
+            progress("preview-detail-pages", 0.36, f"Inspecting {len(items)} projected item pages for media")
+        probes = preview_detail_probes(items, rule, settings, progress=progress, start=0.36, end=0.88)
+        if progress:
+            progress("preview-building-view", 0.9, "Building resource view")
         projection = projection_from_debug(items, events, diagnoses, rule, probes)
         return {
             "projection": projection,
@@ -285,25 +291,41 @@ def projection_from_debug(
     )
 
 
-def preview_detail_probes(items: list[dict[str, str]], rule: dict[str, Any], settings: Settings) -> list[Any]:
+def preview_detail_probes(
+    items: list[dict[str, str]],
+    rule: dict[str, Any],
+    settings: Settings,
+    progress: Any | None = None,
+    start: float = 0.0,
+    end: float = 1.0,
+) -> list[Any]:
     if not items:
         return []
     media_type = MediaType(v3.normalize_media_type(rule.get("media_type")))
     runtime = v3.BrowserRuntime(v3.configured_proxy_url(), headless=True)
     try:
-        return [
-            v3.probe_detail_page(
-                runtime,
-                {"href": item.get("url", ""), "title": item.get("title", "")},
-                rule,
-                user_agent=COMMON_USER_AGENT,
-                timeout=settings.request_timeout_seconds,
-                click_play=False,
-                desktop=bool(rule.get("force_desktop_mode")),
+        probe_items = [item for item in items if item.get("url") and not is_media_url(item.get("url", ""), media_type)]
+        probes = []
+        total = max(1, len(probe_items))
+        for index, item in enumerate(probe_items, start=1):
+            if progress:
+                progress(
+                    "preview-detail-pages",
+                    start + (end - start) * ((index - 1) / total),
+                    f"Inspecting media for item {index} of {len(probe_items)}",
+                )
+            probes.append(
+                v3.probe_detail_page(
+                    runtime,
+                    {"href": item.get("url", ""), "title": item.get("title", "")},
+                    rule,
+                    user_agent=COMMON_USER_AGENT,
+                    timeout=settings.request_timeout_seconds,
+                    click_play=False,
+                    desktop=bool(rule.get("force_desktop_mode")),
+                )
             )
-            for item in items
-            if item.get("url") and not is_media_url(item.get("url", ""), media_type)
-        ]
+        return probes
     finally:
         runtime.close()
 

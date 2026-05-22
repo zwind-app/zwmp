@@ -48,7 +48,7 @@ export interface ProjectionResult {
 }
 
 export interface RuntimeNotice {
-  kind: "ai_fallback" | "sniffing_limited";
+  kind: "ai_fallback" | "ai_quota" | "sniffing_limited";
   message: string;
   action: string;
 }
@@ -97,4 +97,28 @@ export interface JobResponse {
   error?: string | null;
   debug_events: DebugEvent[];
   result?: GenerationResult | { projection: ProjectionResult; runtime_notices: RuntimeNotice[]; debug?: Record<string, unknown> } | null;
+}
+
+export interface PublicConfig {
+  site: {
+    default_locale: string;
+    supported_locales: string[];
+    links: { github: string; zwind: string };
+    seo: Record<string, { title: string; description: string; keywords: string[] }>;
+    guidance: Record<string, string>;
+  };
+}
+
+export interface ShareCreateRequest {
+  rule_text: string;
+  projection: ProjectionResult;
+  site_profile?: GenerationResult["site_profile"] | null;
+  runtime_notices: RuntimeNotice[];
+  warnings: string[];
+}
+
+export interface ShareResponse extends ShareCreateRequest {
+  id: string;
+  url_path: string;
+  created_at: string;
 }

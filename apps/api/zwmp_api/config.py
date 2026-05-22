@@ -5,6 +5,11 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from .app_config import load_app_config
+
+
+app_config = load_app_config()
+
 
 class Settings(BaseModel):
     data_dir: Path = Path(os.getenv("ZWMP_DATA_DIR", "data"))
@@ -18,7 +23,7 @@ class Settings(BaseModel):
     probe_items: int = int(os.getenv("ZWMP_PROBE_ITEMS", "3"))
     request_timeout_seconds: float = float(os.getenv("ZWMP_REQUEST_TIMEOUT", "12"))
     max_html_bytes: int = int(os.getenv("ZWMP_MAX_HTML_BYTES", str(2_000_000)))
-    proxy_ttl_seconds: int = int(os.getenv("ZWMP_PROXY_TTL_SECONDS", "900"))
+    app_config_path: Path = Path(os.getenv("ZWMP_CONFIG", "config/zwmp.config.json"))
 
     def ensure_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -27,4 +32,3 @@ class Settings(BaseModel):
 
 
 settings = Settings()
-

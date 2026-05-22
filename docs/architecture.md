@@ -25,7 +25,8 @@ Core responsibilities:
 - produce `.wm` rule drafts
 - validate drafts by executing them with the same v3 browser runtime
 - save generated rules and metadata
-- expose short-lived proxy access only for media discovered inside a preview session
+- expose share links for explicit user-created shares
+- keep media playback browser-direct; no backend media proxy is provided
 
 ## Rule Core
 
@@ -38,9 +39,9 @@ Core responsibilities:
 
 ## Cache Boundary
 
-ZWMP deliberately separates two caches:
+ZWMP deliberately separates rule generation from resource preview:
 
-- Rule generation cache: cached by URL, media type, v3 options, generator version, and schema version.
+- Rule generation cache: mandatory, infinite TTL, keyed by normalized URL pattern, media type, and generator version.
 - Projection preview: not long-term cached. It represents a fresh execution of the rule and may contain expiring media URLs.
 
 This is important because many media URLs contain short-lived signatures or require request headers observed during browser loading.
@@ -67,4 +68,5 @@ The backend treats input URLs as untrusted:
 - only `http` and `https` are allowed
 - localhost, private, link-local, multicast, reserved, and metadata-service addresses are blocked
 - page loads have timeouts and maximum HTML size limits
-- proxy endpoints cannot fetch arbitrary URLs; they only serve media IDs discovered by a job
+- no public generated-rule list API is exposed
+- no backend media proxy endpoint is exposed

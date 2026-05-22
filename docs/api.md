@@ -8,6 +8,14 @@ Base path: `/api`
 GET /api/health
 ```
 
+## Public Config
+
+```text
+GET /api/config
+```
+
+Returns public site configuration: localized guidance, SEO metadata, supported locales, and public links.
+
 ## Generation Jobs
 
 ```text
@@ -22,7 +30,6 @@ Request:
   "url": "https://example.com/videos",
   "media_type": "video",
   "options": {
-    "force_refresh": false,
     "force_network_sniff": false,
     "fast_mode": true,
     "max_items": 30,
@@ -52,6 +59,8 @@ Generation results include:
 
 `runtime_notices` tells clients when AI finalization fell back to the v3 local validation finalizer. Browser fallback is not supported in the v3 path; Playwright failures fail the job.
 
+Generation cache is mandatory and keyed by normalized URL pattern, media type, and generator version. `force_refresh` is intentionally unsupported.
+
 ## Projection Jobs
 
 ```text
@@ -69,17 +78,15 @@ Request:
 
 Projection results include `projection` and `runtime_notices`.
 
-## Rules
+## Share Links
 
 ```text
-GET /api/rules
-GET /api/rules/{rule_id}
+POST /api/shares
+GET  /api/shares/{share_id}
 ```
 
-## Proxy
+Share records store the rule text and the already-built projection view so a user with the link can reopen the result directly.
 
-```text
-GET /api/proxy/{session_id}/{media_id}
-```
+## Hidden Admin Data
 
-This endpoint only proxies media discovered by the matching job/session.
+Generated rules are saved on disk for self-hosted export, but no public `/api/rules` endpoint is exposed. Use `scripts/export_rules.py` to export generated rules. ZWMP also does not expose a media proxy endpoint; all media preview URLs are browser-direct.

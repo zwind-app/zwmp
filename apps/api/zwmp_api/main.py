@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import httpx
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+import uuid
 
-from .config import settings
-from .jobs import JobManager
-from .schemas import GenerationRequest, JobResponse, ProjectionRequest
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+
+from .config import app_config, settings
+from .jobs import ClientContext, JobManager
+from .schemas import GenerationRequest, JobResponse, ProjectionRequest, PublicConfig, ShareCreateRequest, ShareResponse
 from .storage import Storage
 
 settings.ensure_dirs()
@@ -29,9 +29,24 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "version": "0.1.0"}
 
 
+@app.get("/api/config", response_model=PublicConfig)
+async def public_config() -> PublicConfig:
+    return PublicConfig(site=app_config.site.model_dump())
+
+
 @app.post("/api/generation-jobs", response_model=JobResponse)
-async def create_generation_job(request: GenerationRequest) -> JobResponse:
-    return jobs.create_generation_job(request)
+async def create_generation_job(request: GenerationRequest, http_request: Request, response: Response) -> JobResponse:
+    device_id = http_request.cookies.get("zwmp_device_id") or str(uuid.uuid4())
+    response.set_cookie(
+        "zwmp_device_id",
+        device_id,
+        max_age=60 * 60 * 24 * 365,
+        secure=False,
+        httponly=False,
+        samesite="lax",
+    )
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    return jobs.create_generation_job(request, ClientContext(ip=client_ip, device_id=device_id))
 
 
 @app.get("/api/generation-jobs/{job_id}", response_model=JobResponse)
@@ -55,45 +70,20 @@ async def get_projection_job(job_id: str) -> JobResponse:
     return job
 
 
-@app.get("/api/rules")
-async def list_rules() -> dict:
-    return {"rules": [rule.model_dump() for rule in storage.list_rules()]}
+@app.post("/api/shares", response_model=ShareResponse)
+async def create_share(request: ShareCreateRequest) -> ShareResponse:
+    return storage.create_share(
+        request.rule_text,
+        request.projection,
+        request.site_profile,
+        request.runtime_notices,
+        request.warnings,
+    )
 
 
-@app.get("/api/rules/{rule_id}")
-async def get_rule(rule_id: str) -> dict:
-    text = storage.get_rule_text(rule_id)
-    if text is None:
-        raise HTTPException(status_code=404, detail="rule not found")
-    return {"id": rule_id, "rule_text": text}
-
-
-@app.get("/api/proxy/{session_id}/{media_id}")
-async def proxy_media(session_id: str, media_id: str, request: Request) -> StreamingResponse:
-    target = jobs.proxy_target(session_id, media_id)
-    if not target:
-        raise HTTPException(status_code=404, detail="proxy target not found or expired")
-    headers = {}
-    if range_header := request.headers.get("range"):
-        headers["Range"] = range_header
-    for key in ("Referer", "Origin", "User-Agent", "Cookie"):
-        if value := target.get(key):
-            headers[key] = value
-    client = httpx.AsyncClient(timeout=None, follow_redirects=True)
-    upstream = await client.stream("GET", target["url"], headers=headers).__aenter__()
-
-    async def body():
-        try:
-            async for chunk in upstream.aiter_bytes():
-                yield chunk
-        finally:
-            await upstream.aclose()
-            await client.aclose()
-
-    response_headers = {
-        key: value
-        for key, value in upstream.headers.items()
-        if key.lower() in {"content-type", "content-length", "content-range", "accept-ranges"}
-    }
-    return StreamingResponse(body(), status_code=upstream.status_code, headers=response_headers)
-
+@app.get("/api/shares/{share_id}", response_model=ShareResponse)
+async def get_share(share_id: str) -> ShareResponse:
+    share = storage.get_share(share_id)
+    if not share:
+        raise HTTPException(status_code=404, detail="share not found")
+    return share

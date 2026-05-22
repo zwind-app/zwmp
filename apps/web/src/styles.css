@@ -25,6 +25,14 @@ textarea {
   font: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 a {
   color: inherit;
 }
@@ -77,6 +85,7 @@ a {
 }
 
 .links a,
+.linkButton,
 .ghost,
 .primary {
   display: inline-flex;
@@ -90,6 +99,34 @@ a {
   text-decoration: none;
   padding: 0 12px;
   border-radius: 7px;
+}
+
+.linkButton {
+  cursor: pointer;
+}
+
+.intro {
+  max-width: 1680px;
+  margin: 0 auto 14px;
+  padding: 10px 0 18px;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 56px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.intro p {
+  max-width: 760px;
+  margin: 10px 0 6px;
+  color: #d8d3ca;
+  line-height: 1.55;
+}
+
+.intro small {
+  color: #aaa49b;
 }
 
 .workspace {
@@ -238,7 +275,7 @@ input {
 
 textarea {
   display: block;
-  height: calc(100% - 92px);
+  height: calc(100% - 126px);
   min-height: 420px;
   resize: none;
   padding: 16px;
@@ -249,6 +286,15 @@ textarea {
   line-height: 1.55;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 13px;
+}
+
+.ruleHint {
+  margin: 0;
+  padding: 9px 14px;
+  color: #aaa49b;
+  font-size: 12px;
+  line-height: 1.35;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .segments {
@@ -267,6 +313,14 @@ textarea {
   background: transparent;
   min-height: 32px;
   border-radius: 6px;
+}
+
+.segments button,
+.treeNode,
+.ghost,
+.primary,
+.advancedOptions summary {
+  cursor: pointer;
 }
 
 .segments button.active {
@@ -527,6 +581,30 @@ audio,
   margin-top: 16px;
   background: #050505;
   border-radius: 7px;
+}
+
+.mediaList {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.mediaEntry {
+  display: grid;
+  gap: 8px;
+}
+
+.mediaEntryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #d8d3ca;
+  font-size: 12px;
+}
+
+.mediaEntryHeader a {
+  flex-shrink: 0;
 }
 
 .empty {
