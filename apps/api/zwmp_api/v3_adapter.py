@@ -20,7 +20,7 @@ COMMON_USER_AGENT = (
 )
 
 
-def generate_v3(url: str, media_type: str, options: Any, settings: Settings) -> dict[str, Any]:
+def generate_v3(url: str, media_type: str, options: Any, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
     ai_provider = (settings.ai_provider or "").strip()
     has_ai = bool(settings.ai_api_key and ai_provider and ai_provider != "none")
     args = argparse.Namespace(
@@ -48,6 +48,7 @@ def generate_v3(url: str, media_type: str, options: Any, settings: Settings) -> 
         log_level="INFO",
         no_color=True,
         user_agent=COMMON_USER_AGENT,
+        progress_callback=progress,
     )
     result = v3.run_generation(args)
     rule = dict(result.rule)

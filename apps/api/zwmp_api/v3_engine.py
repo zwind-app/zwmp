@@ -2052,8 +2052,21 @@ def validate_hypothesis(
     detail_probes: int,
     click_play: bool,
     desktop: bool,
+    progress_callback: Any | None = None,
 ) -> HypothesisValidation:
     rule = hypothesis.rule_draft
+    if progress_callback:
+        progress_callback(
+            "validate-listing",
+            0.05,
+            f"Testing listing selector {rule.get('candidate_selector')}",
+            {
+                "candidate_selector": rule.get("candidate_selector"),
+                "candidate_link_selector": rule.get("candidate_link_selector"),
+                "validation_limit": validation_limit,
+            },
+        )
+    listing_started = time.perf_counter()
     listing = validate_listing(
         runtime,
         evidence.final_url,
@@ -2063,18 +2076,108 @@ def validate_hypothesis(
         limit=validation_limit,
         desktop=desktop or bool(rule.get("force_desktop_mode")),
     )
+    log_profile(
+        "validate-listing",
+        listing_started,
+        hypothesis_id=hypothesis.id,
+        candidate=rule.get("candidate_selector"),
+        candidates=listing.candidate_count,
+        visible=listing.visible_candidate_count,
+        link_coverage=listing.link_coverage,
+        title_coverage=listing.title_coverage,
+        thumb_coverage=listing.thumbnail_coverage,
+    )
+    if progress_callback:
+        progress_callback(
+            "validate-listing",
+            0.28,
+            f"Listing selector matched {listing.visible_candidate_count}/{listing.candidate_count} visible candidates",
+            {
+                "candidate_count": listing.candidate_count,
+                "visible_candidate_count": listing.visible_candidate_count,
+                "link_coverage": listing.link_coverage,
+                "title_coverage": listing.title_coverage,
+                "thumbnail_coverage": listing.thumbnail_coverage,
+                "duration_coverage": listing.duration_coverage,
+                "sample_items": listing.sample_items[:5],
+                "errors": listing.errors,
+            },
+        )
     probes: list[DetailProbe] = []
-    for item in listing.sample_items[:detail_probes]:
-        probes.append(probe_detail_page(
-            runtime,
-            item,
-            rule,
-            user_agent=user_agent,
-            timeout=timeout,
-            click_play=click_play,
-            desktop=desktop or bool(rule.get("force_desktop_mode")),
-        ))
+    probe_items = listing.sample_items[:detail_probes]
+    for index, item in enumerate(probe_items, start=1):
+        item_href = str(item.get("href") or "")
+        if progress_callback:
+            progress_callback(
+                "validate-detail-probe",
+                0.28 + 0.52 * ((index - 1) / max(1, len(probe_items))),
+                (
+                    f"Direct media probe {index}/{len(probe_items)}: {item.get('title') or item.get('href')}"
+                    if media_type_matches(item_href, str(rule.get("media_type") or "video"))
+                    else f"Opening detail probe {index}/{len(probe_items)}: {item.get('title') or item.get('href')}"
+                ),
+                {"index": index, "total": len(probe_items), "item": item},
+            )
+        probe_started = time.perf_counter()
+        if media_type_matches(item_href, str(rule.get("media_type") or "video")):
+            probe = DetailProbe(
+                item_title=item.get("title", ""),
+                item_url=item_href,
+                final_url=item_href,
+                page_kind="playable_detail",
+                dom_media=[{"url": item_href, "kind": media_kind_from_url(item_href), "source": "listing-link"}],
+            )
+        else:
+            probe = probe_detail_page(
+                runtime,
+                item,
+                rule,
+                user_agent=user_agent,
+                timeout=timeout,
+                click_play=click_play,
+                desktop=desktop or bool(rule.get("force_desktop_mode")),
+            )
+        probes.append(probe)
+        primary_count = len(probe_primary_media_rows(probe, str(rule.get("media_type") or "video")))
+        log_profile(
+            "validate-detail-probe",
+            probe_started,
+            hypothesis_id=hypothesis.id,
+            index=index,
+            item_url=item.get("href"),
+            final_url=probe.final_url,
+            status=probe.status,
+            page_kind=probe.page_kind,
+            primary_media_count=primary_count,
+            dom_media=len(probe.dom_media),
+            network_media=len(probe.network_media_after_load) + len(probe.network_media_after_click),
+            episode_links=len(probe.episode_links),
+            play_links=len(probe.play_links),
+            error=probe.error,
+        )
+        if progress_callback:
+            progress_callback(
+                "validate-detail-probe",
+                0.28 + 0.52 * (index / max(1, len(probe_items))),
+                f"Detail probe {index}/{len(probe_items)} classified as {probe.page_kind}; media={primary_count}",
+                {
+                    "index": index,
+                    "total": len(probe_items),
+                    "item_url": item.get("href"),
+                    "final_url": probe.final_url,
+                    "status": probe.status,
+                    "page_kind": probe.page_kind,
+                    "primary_media_count": primary_count,
+                    "dom_media_count": len(probe.dom_media),
+                    "network_media_count": len(probe.network_media_after_load) + len(probe.network_media_after_click),
+                    "episode_link_count": len(probe.episode_links),
+                    "play_link_count": len(probe.play_links),
+                    "error": probe.error,
+                },
+            )
 
+    if progress_callback:
+        progress_callback("score-validation", 0.84, "Scoring validation and suggested repairs", {"detail_probe_count": len(probes)})
     repairs = suggest_repairs_from_probes(rule, probes)
     quality = score_validation(listing, probes, rule, repairs)
     warnings = []
@@ -2084,6 +2187,13 @@ def validate_hypothesis(
         warnings.append("candidate links have weak coverage")
     if probes and not any(p.page_kind in {"playable_detail", "gallery", "intermediate"} for p in probes):
         warnings.append("detail probes did not identify playable media or intermediate links")
+    if progress_callback:
+        progress_callback(
+            "score-validation",
+            0.95,
+            f"Validation score {quality:.3f}; repairs={json.dumps(repairs, ensure_ascii=False)}",
+            {"quality_score": quality, "repairs": repairs, "warnings": warnings},
+        )
     return HypothesisValidation(
         hypothesis_id=hypothesis.id,
         listing=listing,
@@ -2535,9 +2645,32 @@ def json_output(result: InferenceResult) -> dict[str, Any]:
     }
 
 
+def emit_progress(args: argparse.Namespace, phase: str, fraction: float, message: str, data: dict[str, Any] | None = None) -> None:
+    callback = getattr(args, "progress_callback", None)
+    payload = data or {}
+    LOGGER.info("PROGRESS phase=%s fraction=%.3f message=%s data=%s", phase, clamp(fraction, 0.0, 1.0), message, json.dumps(payload, ensure_ascii=False, default=str))
+    print(
+        f"PROGRESS phase={phase} fraction={clamp(fraction, 0.0, 1.0):.3f} message={message} data={json.dumps(payload, ensure_ascii=False, default=str)}",
+        file=sys.stderr,
+    )
+    if callback:
+        callback(phase, clamp(fraction, 0.0, 1.0), message, payload)
+
+
+def log_profile(phase: str, started_at: float, **data: Any) -> None:
+    duration_ms = round((time.perf_counter() - started_at) * 1000, 1)
+    payload = json.dumps(data, ensure_ascii=False, default=str)
+    LOGGER.info("PROFILE phase=%s duration_ms=%s data=%s", phase, duration_ms, payload)
+    print(f"PROFILE phase={phase} duration_ms={duration_ms} data={payload}", file=sys.stderr)
+
+
 def run_generation(args: argparse.Namespace) -> InferenceResult:
+    total_started = time.perf_counter()
+    emit_progress(args, "browser-start", 0.02, "Starting v3 browser runtime", {})
     runtime = BrowserRuntime(configured_proxy_url(), headless=not args.headful)
     try:
+        evidence_started = time.perf_counter()
+        emit_progress(args, "collect-evidence", 0.05, "Loading source page and collecting listing evidence", {"url": args.url})
         evidence = collect_page_evidence(
             runtime,
             args.url,
@@ -2548,14 +2681,69 @@ def run_generation(args: argparse.Namespace) -> InferenceResult:
             scroll_steps=args.scroll_steps,
             desktop=args.desktop,
         )
+        log_profile(
+            "collect-evidence",
+            evidence_started,
+            final_url=evidence.final_url,
+            groups=len(evidence.candidate_groups),
+            network_media=len(evidence.network_media_after_load),
+            lazy_load_observed=evidence.lazy_load_observed,
+        )
+        emit_progress(
+            args,
+            "collect-evidence",
+            0.2,
+            f"Collected {len(evidence.candidate_groups)} candidate groups from rendered page",
+            {
+                "final_url": evidence.final_url,
+                "groups": len(evidence.candidate_groups),
+                "network_media": len(evidence.network_media_after_load),
+                "lazy_load_observed": evidence.lazy_load_observed,
+            },
+        )
+
+        local_started = time.perf_counter()
         local_h = local_hypotheses(evidence, args.max_items, limit=args.max_candidate_groups)
+        log_profile("local-hypotheses", local_started, count=len(local_h))
+        emit_progress(args, "local-hypotheses", 0.26, f"Prepared {len(local_h)} local rule hypotheses", {"count": len(local_h)})
+
+        ai_started = time.perf_counter()
+        emit_progress(args, "ai-hypotheses", 0.3, "Requesting AI rule hypotheses" if not args.no_ai and args.api_key else "Skipping AI hypotheses; using local analysis", {})
         ai_h = ai_hypotheses_or_empty(evidence, args)
+        log_profile("ai-hypotheses", ai_started, count=len(ai_h), enabled=not args.no_ai and bool(args.api_key))
+        emit_progress(args, "ai-hypotheses", 0.4, f"Prepared {len(ai_h)} AI hypotheses", {"count": len(ai_h)})
+
         hypotheses = merge_hypotheses(ai_h, local_h)
         LOGGER.info("hypotheses prepared ai=%d local=%d merged=%d", len(ai_h), len(local_h), len(hypotheses))
+        emit_progress(
+            args,
+            "merge-hypotheses",
+            0.43,
+            f"Merged {len(hypotheses)} hypotheses for validation",
+            {"ai": len(ai_h), "local": len(local_h), "merged": len(hypotheses)},
+        )
 
         validations: list[HypothesisValidation] = []
-        for hypothesis in hypotheses[:args.validate_hypotheses]:
+        validation_targets = hypotheses[:args.validate_hypotheses]
+        for index, hypothesis in enumerate(validation_targets, start=1):
             LOGGER.info("validate hypothesis id=%s candidate=%s", hypothesis.id, hypothesis.rule_draft.get("candidate_selector"))
+            candidate = str(hypothesis.rule_draft.get("candidate_selector") or "")
+            emit_progress(
+                args,
+                "validate-hypothesis",
+                0.45 + 0.3 * ((index - 1) / max(1, len(validation_targets))),
+                f"Validating {hypothesis.id}: {candidate}",
+                {
+                    "index": index,
+                    "total": len(validation_targets),
+                    "hypothesis_id": hypothesis.id,
+                    "source": hypothesis.source,
+                    "candidate_selector": candidate,
+                    "candidate_link_selector": hypothesis.rule_draft.get("candidate_link_selector"),
+                    "detail_probes": args.detail_probes,
+                },
+            )
+            validation_started = time.perf_counter()
             validation = validate_hypothesis(
                 runtime,
                 evidence,
@@ -2566,19 +2754,82 @@ def run_generation(args: argparse.Namespace) -> InferenceResult:
                 detail_probes=args.detail_probes,
                 click_play=ENABLE_CLICK_PLAY_PROBE and not args.no_click_play,
                 desktop=args.desktop,
+                progress_callback=lambda phase, local_fraction, message, data, h=hypothesis, i=index: emit_progress(
+                    args,
+                    phase,
+                    0.45 + 0.3 * (((i - 1) + local_fraction) / max(1, len(validation_targets))),
+                    message,
+                    {"hypothesis_id": h.id, **(data or {})},
+                ),
             )
             validations.append(validation)
+            log_profile(
+                "validate-hypothesis",
+                validation_started,
+                hypothesis_id=hypothesis.id,
+                source=hypothesis.source,
+                candidate=candidate,
+                score=validation.quality_score,
+                metrics=validation_metrics_line(validation),
+                repairs=validation.suggested_repairs,
+                warnings=validation.warnings,
+            )
+            emit_progress(
+                args,
+                "validated-hypothesis",
+                0.45 + 0.3 * (index / max(1, len(validation_targets))),
+                f"Validated {hypothesis.id}: {validation_metrics_line(validation)}",
+                {
+                    "hypothesis_id": hypothesis.id,
+                    "source": hypothesis.source,
+                    "candidate_selector": candidate,
+                    "quality_score": validation.quality_score,
+                    "metrics": validation_metrics_line(validation),
+                    "repairs": validation.suggested_repairs,
+                    "warnings": validation.warnings,
+                },
+            )
             print_validation_result(hypothesis, validation)
 
+        final_started = time.perf_counter()
+        emit_progress(args, "finalize-rule", 0.78, "Selecting final rule from validated hypotheses", {"validations": len(validations)})
         ai_final = ai_finalize_or_none(evidence, hypotheses, validations, args)
         if ai_final is not None:
             rule, confidence, reasoning, examples = ai_final
             used_ai = True
+            finalizer = "ai"
         else:
             rule, confidence, reasoning, examples = local_finalize(evidence, hypotheses, validations, args.max_items)
             used_ai = False if args.no_ai or not args.api_key else any(h.source == "ai" for h in hypotheses)
+            finalizer = "local"
+        best_validation = max(validations, key=lambda item: item.quality_score) if validations else None
+        log_profile(
+            "finalize-rule",
+            final_started,
+            finalizer=finalizer,
+            confidence=confidence,
+            best_hypothesis=best_validation.hypothesis_id if best_validation else None,
+            best_score=best_validation.quality_score if best_validation else None,
+        )
+        emit_progress(
+            args,
+            "finalize-rule",
+            0.84,
+            f"Selected {best_validation.hypothesis_id if best_validation else finalizer} using {finalizer} finalizer",
+            {
+                "finalizer": finalizer,
+                "confidence": confidence,
+                "best_hypothesis": best_validation.hypothesis_id if best_validation else None,
+                "best_score": best_validation.quality_score if best_validation else None,
+                "reasoning": reasoning,
+            },
+        )
 
+        sanitize_started = time.perf_counter()
         final_rule = prefer_scoped_candidate_selector(sanitize_rule(rule, evidence.final_url, args.max_items), evidence, args.max_items)
+        log_profile("sanitize-final-rule", sanitize_started, keys=sorted(final_rule.keys()))
+        emit_progress(args, "rule-ready", 0.88, "Final rule is ready; executing preview", {"rule": final_rule})
+        log_profile("generate-total", total_started, finalizer=finalizer, used_ai=used_ai)
         return InferenceResult(
             rule=final_rule,
             used_ai=used_ai,

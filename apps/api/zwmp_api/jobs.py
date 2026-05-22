@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import json
+import sys
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Awaitable, Callable
@@ -13,6 +17,9 @@ from .config import Settings, app_config
 from .schemas import GenerationRequest, GenerationResult, JobResponse, ProjectionJobResult, ProjectionRequest, RuleDraft, RuntimeNotice
 from .storage import Storage, normalized_url_pattern
 from .v3_adapter import generate_v3, preview_v3
+
+
+LOGGER = logging.getLogger("zwmp_api.jobs")
 
 
 @dataclass(frozen=True)
@@ -98,8 +105,14 @@ class JobManager:
 
         ai_selection = self._select_ai_settings(context)
         self._update(job, "collecting-evidence", 0.12, "Collecting browser-rendered v3 listing evidence")
-        self._update(job, "generating-rule", 0.2, "Generating and validating rule hypotheses")
-        generated = await asyncio.to_thread(generate_v3, url, media_type, request.options, ai_selection.settings)
+        generated = await asyncio.to_thread(
+            generate_v3,
+            url,
+            media_type,
+            request.options,
+            ai_selection.settings,
+            self._progress_mapper(job, 0.12, 0.82),
+        )
         projection: ProjectionResult = generated["projection"]
         job.debug_events.extend(projection.debug_events)
         runtime_notices = list(generated["runtime_notices"])
@@ -147,6 +160,51 @@ class JobManager:
         job.phase = phase
         job.progress = progress
         job.debug_events.append(DebugEvent(phase=phase, message=message))
+        LOGGER.info(
+            "JOB_PROGRESS job_id=%s type=%s phase=%s progress=%.3f message=%s",
+            job.id,
+            job.type,
+            phase,
+            progress,
+            message,
+        )
+        print(
+            f"JOB_PROGRESS job_id={job.id} type={job.type} phase={phase} progress={progress:.3f} message={message}",
+            file=sys.stderr,
+        )
+
+    def _progress_mapper(self, job: JobResponse, start: float, end: float):
+        last_emit = {"time": 0.0, "phase": ""}
+
+        def progress(phase: str, fraction: float, message: str, data: dict | None = None) -> None:
+            now = time.perf_counter()
+            # Always emit phase changes and validation milestones; throttle repetitive probes lightly.
+            important = phase != last_emit["phase"] or phase.startswith(("validated", "validate-detail", "finalize", "rule-ready"))
+            if important or now - last_emit["time"] >= 0.5:
+                mapped = start + (end - start) * max(0.0, min(1.0, fraction))
+                job.phase = phase
+                job.progress = mapped
+                job.debug_events.append(DebugEvent(phase=phase, message=message, data=data or {}))
+                LOGGER.info(
+                    "JOB_PROGRESS job_id=%s type=%s phase=%s progress=%.3f message=%s data=%s",
+                    job.id,
+                    job.type,
+                    phase,
+                    mapped,
+                    message,
+                    data or {},
+                )
+                print(
+                    (
+                        f"JOB_PROGRESS job_id={job.id} type={job.type} phase={phase} "
+                        f"progress={mapped:.3f} message={message} data={json.dumps(data or {}, ensure_ascii=False, default=str)}"
+                    ),
+                    file=sys.stderr,
+                )
+                last_emit["time"] = now
+                last_emit["phase"] = phase
+
+        return progress
 
     def _select_ai_settings(self, context: ClientContext) -> AISelection:
         providers = configured_ai_providers(self.settings)
