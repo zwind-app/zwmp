@@ -63,6 +63,11 @@ media_type=video
 max_items=30
 ```
 
+## Rule Documentation
+
+- [Web Media `.wm` Rule Syntax Guide](docs/web-media-rule-guide.md): user-facing rule syntax and common examples.
+- [ZWMP Rule Specification](docs/specification.md): reference-oriented specification details for implementers.
+
 ## Configuration
 
 The backend reads these environment variables:

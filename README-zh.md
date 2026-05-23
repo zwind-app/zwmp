@@ -63,6 +63,11 @@ media_type=video
 max_items=30
 ```
 
+## 规则文档
+
+- [Web Media `.wm` 规则语法说明](docs/web-media-rule-guide-zh.md)：面向用户的规则写法和常见示例。
+- [ZWMP Rule Specification](docs/specification.md)：面向实现者的规则 specification 细节。
+
 ## 配置
 
 后端读取这些环境变量：
