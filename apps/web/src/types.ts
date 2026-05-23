@@ -89,8 +89,9 @@ export interface GenerationResult {
 }
 
 export interface GenerationPartialResult {
-  rule_text: string;
+  rule_text?: string;
   site_profile?: GenerationResult["site_profile"] | null;
+  projection_preview?: ProjectionResult;
   cache_hit?: boolean;
   warnings?: string[];
   runtime_notices?: RuntimeNotice[];

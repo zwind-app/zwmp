@@ -91,3 +91,33 @@ def test_preview_detail_probes_all_items_not_probe_limit(monkeypatch):
 
     assert len(probes) == 5
     assert probed_urls == [item["url"] for item in items]
+
+
+def test_preview_detail_probes_reports_incremental_results(monkeypatch):
+    class FakeRuntime:
+        def __init__(self, proxy_url, headless=True):
+            self.proxy_url = proxy_url
+            self.headless = headless
+
+        def close(self):
+            return None
+
+    def fake_probe(runtime, item, rule, **kwargs):
+        probe = v3.DetailProbe(item_title=item["title"], item_url=item["href"])
+        probe.final_url = item["href"]
+        probe.dom_media = [{"url": f"{item['href']}.mp4", "kind": "video", "source": "dom"}]
+        return probe
+
+    increments = []
+    monkeypatch.setattr(v3, "BrowserRuntime", FakeRuntime)
+    monkeypatch.setattr(v3, "probe_detail_page", fake_probe)
+    items = [{"title": f"Item {index}", "url": f"https://example.com/watch/{index}"} for index in range(3)]
+
+    preview_detail_probes(
+        items,
+        {"media_type": "video"},
+        Settings(probe_items=1),
+        on_probe=lambda index, total, probes: increments.append((index, total, len(probes))),
+    )
+
+    assert increments == [(1, 3, 1), (2, 3, 2), (3, 3, 3)]

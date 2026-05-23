@@ -200,8 +200,8 @@ export function App() {
       try {
         const next = job.type === "generation" ? await getGenerationJob(job.id) : await getProjectionJob(job.id);
         setJob(next);
-        if (next.type === "generation" && next.partial_result?.rule_text) {
-          applyGenerationPartial(next.partial_result);
+        if (next.partial_result) {
+          applyJobPartial(next.partial_result);
         }
         if (next.status === "succeeded" && next.result) {
           if ("rule_text" in next.result) {
@@ -210,11 +210,12 @@ export function App() {
             setProjection(result.projection_preview);
             setSiteProfile(result.site_profile);
             setRuntimeNotices(result.runtime_notices ?? []);
-            setSelectedItemId(result.projection_preview.items[0]?.id ?? null);
+            setSelectedItemId((current) => keepOrFirstItem(current, result.projection_preview));
           } else if ("projection" in next.result) {
-            setProjection(next.result.projection);
+            const projectionResult = next.result.projection;
+            setProjection(projectionResult);
             setRuntimeNotices(next.result.runtime_notices ?? []);
-            setSelectedItemId(next.result.projection.items[0]?.id ?? null);
+            setSelectedItemId((current) => keepOrFirstItem(current, projectionResult));
           }
         }
         if (next.status === "failed") setError(next.error ?? "Job failed");
@@ -248,10 +249,14 @@ export function App() {
     setJob(created);
   }
 
-  function applyGenerationPartial(partial: GenerationPartialResult) {
-    setRuleText(partial.rule_text);
+  function applyJobPartial(partial: GenerationPartialResult) {
+    if (partial.rule_text) setRuleText(partial.rule_text);
     if (partial.site_profile) setSiteProfile(partial.site_profile);
     setRuntimeNotices(partial.runtime_notices ?? []);
+    if (partial.projection_preview) {
+      setProjection(partial.projection_preview);
+      setSelectedItemId((current) => keepOrFirstItem(current, partial.projection_preview ?? emptyProjection));
+    }
   }
 
   async function previewEditedRule() {
@@ -528,6 +533,11 @@ function MediaPreview({ media, label }: { media: ProjectionMedia; label: string 
 function sourceFromRule(rule: string): string | null {
   const line = rule.split(/\r?\n/).find((value) => value.trim().startsWith("source="));
   return line ? line.slice("source=".length).trim() || null : null;
+}
+
+function keepOrFirstItem(current: string | null, projection: ProjectionResult): string | null {
+  if (current && projection.items.some((item) => item.id === current)) return current;
+  return projection.items[0]?.id ?? null;
 }
 
 function setMeta(name: string, content: string) {

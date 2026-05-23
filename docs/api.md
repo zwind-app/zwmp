@@ -44,7 +44,9 @@ Request:
 }
 ```
 
-The job response includes status, phase, progress, debug events, and a result when complete.
+The job response includes status, phase, progress, debug events, `partial_result` while running, and a final `result` when complete.
+
+During generation, `partial_result.rule_text` is emitted as soon as the rule is ready, before preview finishes. During generation and projection preview, `partial_result.projection_preview` is updated incrementally as detail pages are resolved.
 
 Generation results include:
 

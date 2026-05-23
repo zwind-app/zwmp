@@ -83,6 +83,7 @@ The backend reads these environment variables:
 - `ZWMP_PROBE_ITEMS`: number of candidate detail pages to probe. Default: `3`.
 - `ZWMP_REQUEST_TIMEOUT`: page request timeout in seconds. Default: `12`.
 - `ZWMP_MAX_HTML_BYTES`: maximum HTML response size. Default: `2000000`.
+- `ZWMP_CHROME_HEADLESS_QUOTA`: maximum concurrent jobs allowed to run Chromium. Default: `1`.
 
 Site guidance, SEO metadata, public links, AI providers, and AI quota are configured in `config/zwmp.config.json`. If that file defines AI providers, it overrides the legacy env AI settings. If no provider is available, quota is exhausted, or the provider is rate-limited, ZWMP uses the v3 local hypotheses + validation finalizer and the web UI shows that fallback.
 
@@ -91,6 +92,7 @@ Default AI quota is global: 2 AI generations per `zwmp_device_id` cookie per day
 Generation cache is mandatory and keyed by normalized URL pattern, media type, generator version, and generation mode (`ai` or `local`). Query parameter values are removed but parameter names are retained. AI cache is preferred. Local cache is used only when AI is unavailable or over quota. Cache records have no TTL; administrators can delete cache rows or generated rule files manually.
 
 Playwright is required at runtime. Generation and preview use the v3 browser-first workflow and fail with installation guidance when Chromium cannot launch.
+Chrome concurrency is intentionally limited because each job can spawn multiple Chromium child processes; raise `ZWMP_CHROME_HEADLESS_QUOTA` only when the server has enough memory.
 
 Media preview uses direct browser URLs only. ZWMP does not expose a backend media proxy endpoint.
 

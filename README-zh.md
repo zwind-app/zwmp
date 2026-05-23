@@ -83,6 +83,7 @@ max_items=30
 - `ZWMP_PROBE_ITEMS`：默认探测的候选详情页数量。默认：`3`。
 - `ZWMP_REQUEST_TIMEOUT`：页面请求超时时间，单位秒。默认：`12`。
 - `ZWMP_MAX_HTML_BYTES`：最大 HTML 响应大小。默认：`2000000`。
+- `ZWMP_CHROME_HEADLESS_QUOTA`：允许同时运行 Chromium 的 job 数量。默认：`1`。
 
 站点引导文案、SEO metadata、公开链接、AI providers 和 AI quota 都配置在 `config/zwmp.config.json`。如果该文件配置了 AI providers，会覆盖旧的 env AI 配置。如果没有可用 provider、quota 用尽或 provider ratelimited，ZWMP 会 fallback 到 v3 local hypotheses + validation finalizer，并在 Web UI 显式提示。
 
@@ -91,6 +92,7 @@ max_items=30
 生成 cache 是强制的，key 基于 normalized URL pattern、媒体类型、generator version 和 generation mode（`ai` / `local`）。URL 查询参数会保留参数名但移除参数值。AI cache 优先；只有 AI 不可用或 quota 用尽时才使用 local cache。cache 没有 TTL；管理员可以手动删除 cache 记录或 generated rule 文件。
 
 Playwright 是运行时硬要求。生成和预览都使用 v3 browser-first workflow；如果 Chromium 无法启动，任务会失败并提示安装方式。
+Chrome 并发默认被严格限制，因为每个 job 都可能拉起多个 Chromium 子进程；只有服务器内存足够时才建议调高 `ZWMP_CHROME_HEADLESS_QUOTA`。
 
 媒体预览只使用浏览器直连 URL。ZWMP 不提供后端媒体 proxy endpoint。
 

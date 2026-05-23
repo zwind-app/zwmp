@@ -7,7 +7,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 from zwmp_rule.security import assert_public_http_url
 from zwmp_rule.types import DebugEvent, ProjectionResult
@@ -40,6 +40,8 @@ class JobManager:
         self.settings = settings
         self.storage = storage
         self.jobs: dict[str, JobResponse] = {}
+        self._chrome_quota = max(1, settings.chrome_headless_quota)
+        self._chrome_slots = asyncio.Semaphore(self._chrome_quota)
 
     def create_generation_job(self, request: GenerationRequest, context: ClientContext) -> JobResponse:
         job_id = str(uuid.uuid4())
@@ -121,7 +123,9 @@ class JobManager:
                 return result.model_dump()
 
         self._update(job, "collecting-evidence", 0.12, "Collecting browser-rendered v3 listing evidence")
-        generated = await asyncio.to_thread(
+        generated = await self._run_browser_thread(
+            job,
+            "generate",
             generate_v3_rule,
             url,
             media_type,
@@ -188,11 +192,34 @@ class JobManager:
         ).model_dump()
 
     async def _preview_rule(self, rule_text: str, job: JobResponse | None = None, start: float = 0.1, end: float = 0.9) -> dict:
-        def progress(phase: str, fraction: float, message: str) -> None:
+        def progress(phase: str, fraction: float, message: str, data: dict | None = None) -> None:
             if job:
                 self._update(job, phase, start + (end - start) * fraction, message)
+                projection = (data or {}).get("projection_preview")
+                if projection is not None:
+                    self._set_partial_projection(job, projection)
 
-        return await asyncio.to_thread(preview_v3, rule_text, self.settings, progress)
+        return await self._run_browser_thread(job, "preview", preview_v3, rule_text, self.settings, progress)
+
+    async def _run_browser_thread(self, job: JobResponse | None, operation: str, func: Callable[..., Any], *args: Any) -> Any:
+        if job and self._chrome_slots.locked():
+            self._update(
+                job,
+                "waiting-browser",
+                job.progress,
+                f"Waiting for Chrome headless quota ({self._chrome_quota} concurrent job)",
+            )
+        async with self._chrome_slots:
+            started = time.perf_counter()
+            try:
+                return await asyncio.to_thread(func, *args)
+            finally:
+                LOGGER.info(
+                    "CHROME_SLOT_RELEASE operation=%s duration_ms=%.1f quota=%d",
+                    operation,
+                    (time.perf_counter() - started) * 1000,
+                    self._chrome_quota,
+                )
 
     def _update(self, job: JobResponse, phase: str, progress: float, message: str) -> None:
         job.phase = phase
@@ -230,6 +257,11 @@ class JobManager:
             "cache_hit": cache_hit,
             "v3": v3 or {},
         }
+
+    def _set_partial_projection(self, job: JobResponse, projection: Any) -> None:
+        current = dict(job.partial_result or {})
+        current["projection_preview"] = projection.model_dump() if hasattr(projection, "model_dump") else projection
+        job.partial_result = current
 
     def _progress_mapper(self, job: JobResponse, start: float, end: float):
         last_emit = {"time": 0.0, "phase": ""}

@@ -106,9 +106,29 @@ def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | Non
         if progress:
             progress("preview-listing", 0.08, "Loading source page and resolving rule candidates")
         items, events, diagnoses, rule = v3.debug_rule(args)
+        initial_projection = projection_from_debug(items, events, diagnoses, rule, [])
+        if progress:
+            progress(
+                "preview-listing",
+                0.34,
+                f"Resolved {len(items)} projected items from listing",
+                {"projection_preview": initial_projection},
+            )
         if progress:
             progress("preview-detail-pages", 0.36, f"Inspecting {len(items)} projected item pages for media")
-        probes = preview_detail_probes(items, rule, settings, progress=progress, start=0.36, end=0.88)
+
+        def on_probe(index: int, total: int, probes_so_far: list[Any]) -> None:
+            if not progress:
+                return
+            projection = projection_from_debug(items, events, diagnoses, rule, probes_so_far)
+            progress(
+                "preview-detail-result",
+                0.36 + 0.52 * (index / max(1, total)),
+                f"Resolved media for item {index} of {total}",
+                {"projection_preview": projection},
+            )
+
+        probes = preview_detail_probes(items, rule, settings, progress=progress, start=0.36, end=0.88, on_probe=on_probe)
         if progress:
             progress("preview-building-view", 0.9, "Building resource view")
         projection = projection_from_debug(items, events, diagnoses, rule, probes)
@@ -305,6 +325,7 @@ def preview_detail_probes(
     progress: Any | None = None,
     start: float = 0.0,
     end: float = 1.0,
+    on_probe: Any | None = None,
 ) -> list[Any]:
     if not items:
         return []
@@ -321,17 +342,18 @@ def preview_detail_probes(
                     start + (end - start) * ((index - 1) / total),
                     f"Inspecting media for item {index} of {len(probe_items)}",
                 )
-            probes.append(
-                v3.probe_detail_page(
-                    runtime,
-                    {"href": item.get("url", ""), "title": item.get("title", "")},
-                    rule,
-                    user_agent=COMMON_USER_AGENT,
-                    timeout=settings.request_timeout_seconds,
-                    click_play=False,
-                    desktop=bool(rule.get("force_desktop_mode")),
-                )
+            probe = v3.probe_detail_page(
+                runtime,
+                {"href": item.get("url", ""), "title": item.get("title", "")},
+                rule,
+                user_agent=COMMON_USER_AGENT,
+                timeout=settings.request_timeout_seconds,
+                click_play=False,
+                desktop=bool(rule.get("force_desktop_mode")),
             )
+            probes.append(probe)
+            if on_probe:
+                on_probe(index, len(probe_items), list(probes))
         return probes
     finally:
         runtime.close()
