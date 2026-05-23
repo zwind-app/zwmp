@@ -62,6 +62,7 @@ class JobResponse(BaseModel):
     progress: float = 0.0
     error: str | None = None
     debug_events: list[DebugEvent] = Field(default_factory=list)
+    partial_result: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
 
 

@@ -2828,7 +2828,7 @@ def run_generation(args: argparse.Namespace) -> InferenceResult:
         sanitize_started = time.perf_counter()
         final_rule = prefer_scoped_candidate_selector(sanitize_rule(rule, evidence.final_url, args.max_items), evidence, args.max_items)
         log_profile("sanitize-final-rule", sanitize_started, keys=sorted(final_rule.keys()))
-        emit_progress(args, "rule-ready", 0.88, "Final rule is ready; executing preview", {"rule": final_rule})
+        emit_progress(args, "rule-ready", 0.88, "Final rule is ready", {"rule": final_rule})
         log_profile("generate-total", total_started, finalizer=finalizer, used_ai=used_ai)
         return InferenceResult(
             rule=final_rule,

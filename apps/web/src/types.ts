@@ -88,6 +88,15 @@ export interface GenerationResult {
   };
 }
 
+export interface GenerationPartialResult {
+  rule_text: string;
+  site_profile?: GenerationResult["site_profile"] | null;
+  cache_hit?: boolean;
+  warnings?: string[];
+  runtime_notices?: RuntimeNotice[];
+  v3?: GenerationResult["v3"];
+}
+
 export interface JobResponse {
   id: string;
   type: "generation" | "projection";
@@ -96,6 +105,7 @@ export interface JobResponse {
   progress: number;
   error?: string | null;
   debug_events: DebugEvent[];
+  partial_result?: GenerationPartialResult | null;
   result?: GenerationResult | { projection: ProjectionResult; runtime_notices: RuntimeNotice[]; debug?: Record<string, unknown> } | null;
 }
 

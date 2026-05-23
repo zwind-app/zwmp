@@ -1,7 +1,7 @@
 import { Clipboard, ExternalLink, FileCode2, FolderTree, Github, Info, Languages, Play, RefreshCw, Share2, Smartphone } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createGenerationJob, createProjectionJob, createShare, getGenerationJob, getProjectionJob, getPublicConfig, getShare } from "./api";
-import type { GenerationResult, JobResponse, MediaType, ProjectionItem, ProjectionMedia, ProjectionNode, ProjectionResult, PublicConfig, RuntimeNotice } from "./types";
+import type { GenerationPartialResult, GenerationResult, JobResponse, MediaType, ProjectionItem, ProjectionMedia, ProjectionNode, ProjectionResult, PublicConfig, RuntimeNotice } from "./types";
 
 type Locale = "en" | "zh";
 
@@ -200,6 +200,9 @@ export function App() {
       try {
         const next = job.type === "generation" ? await getGenerationJob(job.id) : await getProjectionJob(job.id);
         setJob(next);
+        if (next.type === "generation" && next.partial_result?.rule_text) {
+          applyGenerationPartial(next.partial_result);
+        }
         if (next.status === "succeeded" && next.result) {
           if ("rule_text" in next.result) {
             const result = next.result as GenerationResult;
@@ -243,6 +246,12 @@ export function App() {
       desktop: desktopMode
     });
     setJob(created);
+  }
+
+  function applyGenerationPartial(partial: GenerationPartialResult) {
+    setRuleText(partial.rule_text);
+    if (partial.site_profile) setSiteProfile(partial.site_profile);
+    setRuntimeNotices(partial.runtime_notices ?? []);
   }
 
   async function previewEditedRule() {

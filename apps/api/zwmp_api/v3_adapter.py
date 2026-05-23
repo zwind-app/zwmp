@@ -20,7 +20,7 @@ COMMON_USER_AGENT = (
 )
 
 
-def generate_v3(url: str, media_type: str, options: Any, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
+def generate_v3_rule(url: str, media_type: str, options: Any, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
     ai_provider = (settings.ai_provider or "").strip()
     has_ai = bool(settings.ai_api_key and ai_provider and ai_provider != "none")
     args = argparse.Namespace(
@@ -61,17 +61,23 @@ def generate_v3(url: str, media_type: str, options: Any, settings: Settings, pro
         reasoning=result.reasoning,
         detail_url_examples=result.detail_url_examples,
     )
-    preview = execute_rule_preview(rendered, settings)
     return {
         "rule": rule,
         "rule_text": rendered,
         "site_profile": site_profile_from_inference(result, media_type),
-        "projection": preview["projection"],
         "v3": v3.json_output(result),
         "runtime_notices": runtime_notices(result.used_ai),
         "alternatives": alternatives_from_inference(result),
-        "warnings": [*warnings_from_inference(result), *preview["projection"].warnings],
+        "warnings": warnings_from_inference(result),
     }
+
+
+def generate_v3(url: str, media_type: str, options: Any, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
+    generated = generate_v3_rule(url, media_type, options, settings, progress)
+    preview = execute_rule_preview(generated["rule_text"], settings, progress)
+    generated["projection"] = preview["projection"]
+    generated["warnings"] = [*generated["warnings"], *preview["projection"].warnings]
+    return generated
 
 
 def preview_v3(rule_text: str, settings: Settings, progress: Any | None = None) -> dict[str, Any]:

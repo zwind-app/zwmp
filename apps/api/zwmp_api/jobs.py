@@ -16,7 +16,7 @@ from .app_config import AIProviderConfig
 from .config import Settings, app_config
 from .schemas import GenerationRequest, GenerationResult, JobResponse, ProjectionJobResult, ProjectionRequest, RuleDraft, RuntimeNotice
 from .storage import Storage, normalized_url_pattern
-from .v3_adapter import generate_v3, preview_v3
+from .v3_adapter import generate_v3_rule, preview_v3
 
 
 LOGGER = logging.getLogger("zwmp_api.jobs")
@@ -97,6 +97,14 @@ class JobManager:
             rule_text = self.storage.get_rule_text(cached_id)
             if rule_text:
                 current_rule_text = replace_source(rule_text, url)
+                self._set_partial_rule(
+                    job,
+                    rule_text=current_rule_text,
+                    site_profile=None,
+                    runtime_notices=[],
+                    warnings=[],
+                    cache_hit=True,
+                )
                 preview = await self._preview_rule(current_rule_text, job, 0.12, 0.86)
                 result = GenerationResult(
                     rule_id=cached_id,
@@ -114,22 +122,43 @@ class JobManager:
 
         self._update(job, "collecting-evidence", 0.12, "Collecting browser-rendered v3 listing evidence")
         generated = await asyncio.to_thread(
-            generate_v3,
+            generate_v3_rule,
             url,
             media_type,
             request.options,
             ai_selection.settings,
-            self._progress_mapper(job, 0.12, 0.82),
+            self._progress_mapper(job, 0.12, 0.76),
         )
-        projection: ProjectionResult = generated["projection"]
-        job.debug_events.extend(projection.debug_events)
         runtime_notices = list(generated["runtime_notices"])
         if ai_selection.notice:
             runtime_notices.insert(0, ai_selection.notice)
-        self._update(job, "saving", 0.9, "Saving v3 generated rule")
+        self._set_partial_rule(
+            job,
+            rule_text=generated["rule_text"],
+            site_profile=generated["site_profile"],
+            runtime_notices=runtime_notices,
+            warnings=generated["warnings"],
+            cache_hit=False,
+            v3=generated["v3"],
+        )
+        self._update(job, "rule-ready", 0.77, "Rule text is ready")
+        self._update(job, "saving", 0.78, "Saving v3 generated rule")
         generation_mode = "ai" if bool(generated["v3"].get("used_ai")) else "local"
         summary = self.storage.save_rule(generated["rule_text"], generated["site_profile"], generation_mode=generation_mode)
         self.storage.set_cache(cache_key, summary.id, generation_mode)
+        self._update(job, "previewing", 0.82, "Rule is ready; previewing projected resources")
+        preview_warnings: list[str] = []
+        preview_runtime_notices: list[RuntimeNotice] = []
+        try:
+            preview = await self._preview_rule(generated["rule_text"], job, 0.82, 0.94)
+            projection: ProjectionResult = preview["projection"]
+            preview_runtime_notices = preview["runtime_notices"]
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.exception("generation preview failed job_id=%s", job_id)
+            preview_warnings.append(f"Preview failed after rule generation: {exc}")
+            projection = ProjectionResult(warnings=preview_warnings)
+            job.debug_events.append(DebugEvent(level="warning", phase="previewing", message=preview_warnings[-1]))
+        job.debug_events.extend(projection.debug_events)
         result = GenerationResult(
             rule_id=summary.id,
             rule_text=generated["rule_text"],
@@ -137,8 +166,8 @@ class JobManager:
             projection_preview=projection,
             cache_hit=False,
             alternatives=[RuleDraft.model_validate(item) for item in generated["alternatives"]],
-            warnings=generated["warnings"],
-            runtime_notices=runtime_notices,
+            warnings=[*generated["warnings"], *projection.warnings],
+            runtime_notices=[*runtime_notices, *preview_runtime_notices],
             v3=generated["v3"],
         )
         return result.model_dump()
@@ -181,6 +210,26 @@ class JobManager:
             f"JOB_PROGRESS job_id={job.id} type={job.type} phase={phase} progress={progress:.3f} message={message}",
             file=sys.stderr,
         )
+
+    def _set_partial_rule(
+        self,
+        job: JobResponse,
+        *,
+        rule_text: str,
+        site_profile: object | None,
+        runtime_notices: list[RuntimeNotice],
+        warnings: list[str],
+        cache_hit: bool,
+        v3: dict | None = None,
+    ) -> None:
+        job.partial_result = {
+            "rule_text": rule_text,
+            "site_profile": site_profile.model_dump() if hasattr(site_profile, "model_dump") else site_profile,
+            "runtime_notices": [notice.model_dump() if hasattr(notice, "model_dump") else notice for notice in runtime_notices],
+            "warnings": warnings,
+            "cache_hit": cache_hit,
+            "v3": v3 or {},
+        }
 
     def _progress_mapper(self, job: JobResponse, start: float, end: float):
         last_emit = {"time": 0.0, "phase": ""}
