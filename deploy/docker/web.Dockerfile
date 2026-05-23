@@ -1,6 +1,11 @@
-FROM node:22-bookworm AS build
+FROM node:22-bullseye AS build
 
 WORKDIR /app
+
+ENV npm_config_progress=false \
+    npm_config_fund=false \
+    npm_config_audit=false
+
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 

@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/playwright/python:v1.56.0-jammy
+# FROM mcr.microsoft.com/playwright/python:v1.56.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.56.0-noble
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -14,9 +15,19 @@ COPY apps/api /app/apps/api
 COPY config /app/config
 COPY scripts /app/scripts
 
-RUN python -m pip install --upgrade pip \
-    && pip install -e /app/packages/rule-core -e "/app/apps/api[browser]" \
-    && python -m playwright install chromium
+# RUN python -m pip install --upgrade pip \
+#     && pip install -e /app/packages/rule-core -e "/app/apps/api[browser]" \
+#     && python -m playwright install chromium
+ENV PIP_PROGRESS_BAR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+RUN python -m pip install \
+      --no-cache-dir \
+      --progress-bar off \
+      -e /app/packages/rule-core \
+      -e "/app/apps/api[browser]"
 
 RUN mkdir -p /app/data/cache /app/data/generated-rules /app/.logs \
     && useradd --create-home --shell /usr/sbin/nologin zwmp \

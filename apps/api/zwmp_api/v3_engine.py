@@ -474,7 +474,7 @@ class BrowserRuntime:
 
         self._sync_playwright = sync_playwright
         self._playwright = sync_playwright().start()
-        launch_kwargs: dict[str, Any] = {"headless": headless}
+        launch_kwargs: dict[str, Any] = {"headless": headless, "channel": "chromium"}
         if proxy_url:
             launch_kwargs["proxy"] = {"server": proxy_url}
         self.browser = self._playwright.chromium.launch(**launch_kwargs)

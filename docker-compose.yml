@@ -1,5 +1,10 @@
 services:
   api:
+    init: true
+    ipc: host
+    environment:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PYTHONUNBUFFERED: "1"
     build:
       context: .
       dockerfile: deploy/docker/api.Dockerfile
@@ -10,6 +15,7 @@ services:
       - ./config/zwmp.config.json:/app/config/zwmp.config.json:ro
     restart: unless-stopped
     shm_size: "1gb"
+    # privileged: true
     security_opt:
       - seccomp=unconfined
     healthcheck:
@@ -23,7 +29,7 @@ services:
       context: .
       dockerfile: deploy/docker/web.Dockerfile
     ports:
-      - "8080:80"
+      - "8181:80"
     depends_on:
       api:
         condition: service_healthy

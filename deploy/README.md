@@ -54,7 +54,7 @@ docker compose up -d --build
 Open:
 
 ```text
-http://localhost:8080/
+http://localhost:8181/
 ```
 
 ### Logs And Status
@@ -68,7 +68,7 @@ docker compose logs -f web
 The API exposes a health check at:
 
 ```text
-http://localhost:8080/api/health
+http://localhost:8181/api/health
 ```
 
 ### Stop And Upgrade
@@ -126,7 +126,7 @@ The API image uses the official Playwright Python base image and installs Chromi
 
 ### Public HTTPS
 
-For a public deployment, put a TLS reverse proxy in front of the `web` container and forward traffic to port `8080`, or adapt `deploy/nginx/zwmp.conf` for your host.
+For a public deployment, put a TLS reverse proxy in front of the `web` container and forward traffic to port `8181`, or adapt `deploy/nginx/zwmp.conf` for your host.
 
 Example external nginx upstream:
 
@@ -139,7 +139,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/zwmp.example.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8181;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
