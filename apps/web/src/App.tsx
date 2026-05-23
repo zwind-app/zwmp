@@ -1,4 +1,5 @@
 import { Clipboard, ExternalLink, FileCode2, FolderTree, Github, Info, Languages, Play, RefreshCw, Share2, Smartphone } from "lucide-react";
+import Hls from "hls.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelJob, createGenerationJob, createProjectionJob, createShare, getGenerationJob, getProjectionJob, getPublicConfig, getShare } from "./api";
 import type { GenerationPartialResult, GenerationResult, JobResponse, MediaType, ProjectionItem, ProjectionMedia, ProjectionNode, ProjectionResult, PublicConfig, RuntimeNotice } from "./types";
@@ -552,9 +553,62 @@ function MediaPreview({ media, label }: { media: ProjectionMedia; label: string 
       </div>
       {media.type === "image" ? <img className="assetPreview" src={src} alt="" /> : null}
       {media.type === "audio" ? <audio controls src={src} /> : null}
-      {media.type === "video" || media.type === "all" ? <video controls src={src} /> : null}
+      {media.type === "video" || media.type === "all" ? <VideoPreview src={src} /> : null}
     </div>
   );
+}
+
+function VideoPreview({ src }: { src: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let hls: Hls | null = null;
+    setPlaybackError(null);
+    video.removeAttribute("src");
+    video.load();
+
+    if (isHlsUrl(src)) {
+      if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          console.error("hls.js error", data);
+          if (data.fatal) {
+            setPlaybackError(`HLS playback failed: ${data.type} / ${data.details}`);
+          }
+        });
+        hls.loadSource(src);
+        hls.attachMedia(video);
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = src;
+      } else {
+        setPlaybackError("不支持当前视频格式");
+      }
+    } else {
+      video.src = src;
+    }
+
+    return () => {
+      if (hls) hls.destroy();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [src]);
+
+  return (
+    <>
+      <video ref={videoRef} controls />
+      {playbackError ? <p className="mediaError">{playbackError}</p> : null}
+    </>
+  );
+}
+
+function isHlsUrl(src: string): boolean {
+  const clean = src.split("#", 1)[0].split("?", 1)[0].toLowerCase();
+  return clean.endsWith(".m3u8");
 }
 
 function sourceFromRule(rule: string): string | null {

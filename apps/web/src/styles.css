@@ -578,6 +578,12 @@ textarea {
   font-size: 13px;
 }
 
+.mediaError {
+  margin: 0;
+  color: #ff9b89;
+  font-size: 13px;
+}
+
 video,
 audio,
 .assetPreview {
