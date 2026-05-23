@@ -392,23 +392,7 @@ Use when:
 
 ## 6. Recommended Debugging Method
 
-When a site cannot be parsed, start with:
-
-```bash
-python3 scripts/web_media_rule_generator.py debug \
-  -r your-rule.wm \
-  "https://example.com/list"
-```
-
-Focus on three things:
-
-1. whether `candidate_selector` matches candidate items
-2. whether `detail_url_selector` matches on the corresponding hop page
-3. whether final items are produced
-
-If `candidate_selector` matches zero nodes, the problem is usually on the listing page.
-
-If candidates match but a `detail_url_selector` hop matches zero nodes, the problem is usually the intermediate page selector.
+Use the ZWMP web tool.
 
 ## 7. Fields Not Recommended as Stable User Syntax Yet
 
