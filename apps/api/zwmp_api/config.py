@@ -24,6 +24,7 @@ class Settings(BaseModel):
     request_timeout_seconds: float = float(os.getenv("ZWMP_REQUEST_TIMEOUT", "12"))
     max_html_bytes: int = int(os.getenv("ZWMP_MAX_HTML_BYTES", str(2_000_000)))
     chrome_headless_quota: int = max(1, int(os.getenv("ZWMP_CHROME_HEADLESS_QUOTA", "1")))
+    preview_detail_limit: int = max(1, int(os.getenv("ZWMP_PREVIEW_DETAIL_LIMIT", "30")))
     app_config_path: Path = Path(os.getenv("ZWMP_CONFIG", "config/zwmp.config.json"))
 
     def ensure_dirs(self) -> None:

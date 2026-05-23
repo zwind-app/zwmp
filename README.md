@@ -84,6 +84,7 @@ The backend reads these environment variables:
 - `ZWMP_REQUEST_TIMEOUT`: page request timeout in seconds. Default: `12`.
 - `ZWMP_MAX_HTML_BYTES`: maximum HTML response size. Default: `2000000`.
 - `ZWMP_CHROME_HEADLESS_QUOTA`: maximum concurrent jobs allowed to run Chromium. Default: `1`.
+- `ZWMP_PREVIEW_DETAIL_LIMIT`: maximum detail URLs resolved during preview. Default: `30`.
 
 Site guidance, SEO metadata, public links, AI providers, and AI quota are configured in `config/zwmp.config.json`. If that file defines AI providers, it overrides the legacy env AI settings. If no provider is available, quota is exhausted, or the provider is rate-limited, ZWMP uses the v3 local hypotheses + validation finalizer and the web UI shows that fallback.
 

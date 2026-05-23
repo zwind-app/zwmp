@@ -47,6 +47,7 @@ Request:
 The job response includes status, phase, progress, debug events, `partial_result` while running, and a final `result` when complete.
 
 During generation, `partial_result.rule_text` is emitted as soon as the rule is ready, before preview finishes. During generation and projection preview, `partial_result.projection_preview` is updated incrementally as detail pages are resolved.
+Preview detail resolution is capped by `ZWMP_PREVIEW_DETAIL_LIMIT` (default `30`). If listing resolution or detail-hop expansion produces more URLs, the response includes a `preview_limited` runtime notice.
 
 Generation results include:
 
@@ -79,6 +80,14 @@ Request:
 ```
 
 Projection results include `projection` and `runtime_notices`.
+
+## Job Cancellation
+
+```text
+POST /api/jobs/{job_id}/cancel
+```
+
+Clients should cancel stale jobs when the page is closed or when a new generate/preview request supersedes the old one. Cancellation is cooperative: queued jobs will not start Chromium, and active preview jobs stop between detail-page probes.
 
 ## Share Links
 

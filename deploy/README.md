@@ -126,6 +126,8 @@ The API image uses the official Playwright Python base image and installs Chromi
 
 `ZWMP_CHROME_HEADLESS_QUOTA` controls how many jobs may run Chromium at the same time. It defaults to `1` to protect small servers from spawning too many Chrome processes. Increase it only when the host has enough memory.
 
+`ZWMP_PREVIEW_DETAIL_LIMIT` caps detail URLs resolved during preview. It defaults to `30`; when a rule or detail-hop expansion produces more URLs, the API returns a `preview_limited` runtime notice and the web UI shows the warning.
+
 ### Public HTTPS
 
 For a public deployment, put a TLS reverse proxy in front of the `web` container and forward traffic to port `8181`, or adapt `deploy/nginx/zwmp.conf` for your host.

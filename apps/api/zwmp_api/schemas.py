@@ -49,7 +49,7 @@ class RuleDraft(BaseModel):
 
 
 class RuntimeNotice(BaseModel):
-    kind: Literal["ai_fallback", "ai_quota", "sniffing_limited"]
+    kind: Literal["ai_fallback", "ai_quota", "sniffing_limited", "preview_limited"]
     message: str
     action: str
 

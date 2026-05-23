@@ -80,11 +80,11 @@ def generate_v3(url: str, media_type: str, options: Any, settings: Settings, pro
     return generated
 
 
-def preview_v3(rule_text: str, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
-    return execute_rule_preview(rule_text, settings, progress)
+def preview_v3(rule_text: str, settings: Settings, progress: Any | None = None, cancel_check: Any | None = None) -> dict[str, Any]:
+    return execute_rule_preview(rule_text, settings, progress, cancel_check)
 
 
-def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | None = None) -> dict[str, Any]:
+def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | None = None, cancel_check: Any | None = None) -> dict[str, Any]:
     initial_rule = v3.parse_rule_text(rule_text, "", max_items=500)
     with tempfile.NamedTemporaryFile("w", suffix=".wm", encoding="utf-8", delete=False) as file:
         file.write(rule_text)
@@ -95,7 +95,7 @@ def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | Non
             command="debug",
             rule_file=str(path),
             json=True,
-            limit=rule_preview_limit(initial_rule, settings),
+            limit=min(rule_preview_limit(initial_rule, settings), settings.preview_detail_limit),
             timeout=settings.request_timeout_seconds,
             desktop=False,
             headful=False,
@@ -103,16 +103,45 @@ def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | Non
             no_color=True,
             user_agent=COMMON_USER_AGENT,
         )
+        if cancel_check:
+            cancel_check()
         if progress:
             progress("preview-listing", 0.08, "Loading source page and resolving rule candidates")
         items, events, diagnoses, rule = v3.debug_rule(args)
+        if cancel_check:
+            cancel_check()
+        runtime_notices: list[RuntimeNotice] = []
+        expansion_limited = any("stopped at limit=" in diagnosis for diagnosis in diagnoses)
+        if len(items) > settings.preview_detail_limit:
+            original_count = len(items)
+            items = items[: settings.preview_detail_limit]
+            message = (
+                f"Preview detail parsing was limited to {settings.preview_detail_limit} items "
+                f"from {original_count} resolved detail URLs."
+            )
+            diagnoses.append(message)
+            runtime_notices.append(
+                RuntimeNotice(
+                    kind="preview_limited",
+                    message=message,
+                    action="Lower max_items/detail expansion or raise ZWMP_PREVIEW_DETAIL_LIMIT on a larger server.",
+                )
+            )
+        elif expansion_limited:
+            runtime_notices.append(
+                RuntimeNotice(
+                    kind="preview_limited",
+                    message=f"Preview detail expansion stopped at the configured limit of {settings.preview_detail_limit} items.",
+                    action="Lower max_items/detail expansion or raise ZWMP_PREVIEW_DETAIL_LIMIT on a larger server.",
+                )
+            )
         initial_projection = projection_from_debug(items, events, diagnoses, rule, [])
         if progress:
             progress(
                 "preview-listing",
                 0.34,
                 f"Resolved {len(items)} projected items from listing",
-                {"projection_preview": initial_projection},
+                {"projection_preview": initial_projection, "runtime_notices": runtime_notices},
             )
         if progress:
             progress("preview-detail-pages", 0.36, f"Inspecting {len(items)} projected item pages for media")
@@ -128,7 +157,16 @@ def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | Non
                 {"projection_preview": projection},
             )
 
-        probes = preview_detail_probes(items, rule, settings, progress=progress, start=0.36, end=0.88, on_probe=on_probe)
+        probes = preview_detail_probes(
+            items,
+            rule,
+            settings,
+            progress=progress,
+            start=0.36,
+            end=0.88,
+            on_probe=on_probe,
+            cancel_check=cancel_check,
+        )
         if progress:
             progress("preview-building-view", 0.9, "Building resource view")
         projection = projection_from_debug(items, events, diagnoses, rule, probes)
@@ -149,7 +187,7 @@ def execute_rule_preview(rule_text: str, settings: Settings, progress: Any | Non
                 "items": items,
                 "detail_probes": [v3.to_plain(probe) for probe in probes],
             },
-            "runtime_notices": [],
+            "runtime_notices": runtime_notices,
         }
     finally:
         path.unlink(missing_ok=True)
@@ -326,6 +364,7 @@ def preview_detail_probes(
     start: float = 0.0,
     end: float = 1.0,
     on_probe: Any | None = None,
+    cancel_check: Any | None = None,
 ) -> list[Any]:
     if not items:
         return []
@@ -336,6 +375,8 @@ def preview_detail_probes(
         probes = []
         total = max(1, len(probe_items))
         for index, item in enumerate(probe_items, start=1):
+            if cancel_check:
+                cancel_check()
             if progress:
                 progress(
                     "preview-detail-pages",
@@ -354,6 +395,8 @@ def preview_detail_probes(
             probes.append(probe)
             if on_probe:
                 on_probe(index, len(probe_items), list(probes))
+            if cancel_check:
+                cancel_check()
         return probes
     finally:
         runtime.close()

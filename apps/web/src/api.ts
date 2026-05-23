@@ -45,6 +45,12 @@ export async function getProjectionJob(id: string): Promise<JobResponse> {
   return response.json();
 }
 
+export async function cancelJob(id: string): Promise<JobResponse> {
+  const response = await fetch(`/api/jobs/${id}/cancel`, { method: "POST" });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+
 export async function getPublicConfig(): Promise<PublicConfig> {
   const response = await fetch("/api/config");
   if (!response.ok) throw new Error(await response.text());

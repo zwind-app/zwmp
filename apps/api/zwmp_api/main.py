@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -9,6 +10,12 @@ from .config import app_config, settings
 from .jobs import ClientContext, JobManager
 from .schemas import GenerationRequest, JobResponse, ProjectionRequest, PublicConfig, ShareCreateRequest, ShareResponse
 from .storage import Storage
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S %z",
+)
 
 settings.ensure_dirs()
 storage = Storage(settings)
@@ -67,6 +74,14 @@ async def get_projection_job(job_id: str) -> JobResponse:
     job = jobs.get(job_id)
     if not job or job.type != "projection":
         raise HTTPException(status_code=404, detail="projection job not found")
+    return job
+
+
+@app.post("/api/jobs/{job_id}/cancel", response_model=JobResponse)
+async def cancel_job(job_id: str) -> JobResponse:
+    job = jobs.cancel(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job not found")
     return job
 
 

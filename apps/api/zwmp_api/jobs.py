@@ -22,6 +22,10 @@ from .v3_adapter import generate_v3_rule, preview_v3
 LOGGER = logging.getLogger("zwmp_api.jobs")
 
 
+class JobCancelled(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class ClientContext:
     ip: str
@@ -40,6 +44,7 @@ class JobManager:
         self.settings = settings
         self.storage = storage
         self.jobs: dict[str, JobResponse] = {}
+        self.tasks: dict[str, asyncio.Task] = {}
         self._chrome_quota = max(1, settings.chrome_headless_quota)
         self._chrome_slots = asyncio.Semaphore(self._chrome_quota)
 
@@ -47,31 +52,56 @@ class JobManager:
         job_id = str(uuid.uuid4())
         job = JobResponse(id=job_id, type="generation", status="running", phase="accepted", progress=0.02)
         self.jobs[job_id] = job
-        asyncio.create_task(self._run_job(job_id, lambda: self._generate(job_id, request, context)))
+        self.tasks[job_id] = asyncio.create_task(self._run_job(job_id, lambda: self._generate(job_id, request, context)))
         return job
 
     def create_projection_job(self, request: ProjectionRequest) -> JobResponse:
         job_id = str(uuid.uuid4())
         job = JobResponse(id=job_id, type="projection", status="running", phase="accepted", progress=0.02)
         self.jobs[job_id] = job
-        asyncio.create_task(self._run_job(job_id, lambda: self._project(job_id, request)))
+        self.tasks[job_id] = asyncio.create_task(self._run_job(job_id, lambda: self._project(job_id, request)))
         return job
 
     def get(self, job_id: str) -> JobResponse | None:
         return self.jobs.get(job_id)
 
+    def cancel(self, job_id: str) -> JobResponse | None:
+        job = self.jobs.get(job_id)
+        if not job:
+            return None
+        if job.status in {"queued", "running"}:
+            job.status = "cancelled"
+            job.phase = "cancelled"
+            job.debug_events.append(DebugEvent(level="warning", phase="cancelled", message="Job was cancelled by the client"))
+            LOGGER.info("JOB_CANCELLED job_id=%s type=%s", job.id, job.type)
+            print(f"{local_timestamp()} JOB_CANCELLED job_id={job.id} type={job.type}", file=sys.stderr)
+        return job
+
     async def _run_job(self, job_id: str, runner: Callable[[], Awaitable[dict]]) -> None:
         job = self.jobs[job_id]
+        if job.status == "cancelled":
+            return
         job.status = "running"
         try:
-            job.result = await runner()
+            result = await runner()
+            if job.status == "cancelled":
+                return
+            job.result = result
             job.status = "succeeded"
             job.phase = "done"
             job.progress = 1.0
+        except JobCancelled:
+            job.status = "cancelled"
+            job.phase = "cancelled"
+            job.debug_events.append(DebugEvent(level="warning", phase="cancelled", message="Job stopped after cancellation"))
         except Exception as exc:
+            if job.status == "cancelled":
+                return
             job.status = "failed"
             job.error = str(exc)
             job.debug_events.append(DebugEvent(level="error", phase=job.phase, message=str(exc)))
+        finally:
+            self.tasks.pop(job_id, None)
 
     async def _generate(self, job_id: str, request: GenerationRequest, context: ClientContext) -> dict:
         url = str(request.url)
@@ -194,14 +224,20 @@ class JobManager:
     async def _preview_rule(self, rule_text: str, job: JobResponse | None = None, start: float = 0.1, end: float = 0.9) -> dict:
         def progress(phase: str, fraction: float, message: str, data: dict | None = None) -> None:
             if job:
+                self._ensure_running(job)
                 self._update(job, phase, start + (end - start) * fraction, message)
                 projection = (data or {}).get("projection_preview")
                 if projection is not None:
                     self._set_partial_projection(job, projection)
+                if "runtime_notices" in (data or {}):
+                    self._set_partial_runtime_notices(job, (data or {}).get("runtime_notices") or [])
 
-        return await self._run_browser_thread(job, "preview", preview_v3, rule_text, self.settings, progress)
+        cancel_check = (lambda: self._ensure_running(job)) if job else None
+        return await self._run_browser_thread(job, "preview", preview_v3, rule_text, self.settings, progress, cancel_check)
 
     async def _run_browser_thread(self, job: JobResponse | None, operation: str, func: Callable[..., Any], *args: Any) -> Any:
+        if job:
+            self._ensure_running(job)
         if job and self._chrome_slots.locked():
             self._update(
                 job,
@@ -210,9 +246,14 @@ class JobManager:
                 f"Waiting for Chrome headless quota ({self._chrome_quota} concurrent job)",
             )
         async with self._chrome_slots:
+            if job:
+                self._ensure_running(job)
             started = time.perf_counter()
             try:
-                return await asyncio.to_thread(func, *args)
+                result = await asyncio.to_thread(func, *args)
+                if job:
+                    self._ensure_running(job)
+                return result
             finally:
                 LOGGER.info(
                     "CHROME_SLOT_RELEASE operation=%s duration_ms=%.1f quota=%d",
@@ -234,7 +275,7 @@ class JobManager:
             message,
         )
         print(
-            f"JOB_PROGRESS job_id={job.id} type={job.type} phase={phase} progress={progress:.3f} message={message}",
+            f"{local_timestamp()} JOB_PROGRESS job_id={job.id} type={job.type} phase={phase} progress={progress:.3f} message={message}",
             file=sys.stderr,
         )
 
@@ -263,10 +304,20 @@ class JobManager:
         current["projection_preview"] = projection.model_dump() if hasattr(projection, "model_dump") else projection
         job.partial_result = current
 
+    def _set_partial_runtime_notices(self, job: JobResponse, notices: list[Any]) -> None:
+        current = dict(job.partial_result or {})
+        current["runtime_notices"] = [notice.model_dump() if hasattr(notice, "model_dump") else notice for notice in notices]
+        job.partial_result = current
+
+    def _ensure_running(self, job: JobResponse | None) -> None:
+        if job and job.status == "cancelled":
+            raise JobCancelled()
+
     def _progress_mapper(self, job: JobResponse, start: float, end: float):
         last_emit = {"time": 0.0, "phase": ""}
 
         def progress(phase: str, fraction: float, message: str, data: dict | None = None) -> None:
+            self._ensure_running(job)
             now = time.perf_counter()
             # Always emit phase changes and validation milestones; throttle repetitive probes lightly.
             important = phase != last_emit["phase"] or phase.startswith(("validated", "validate-detail", "finalize", "rule-ready"))
@@ -286,7 +337,7 @@ class JobManager:
                 )
                 print(
                     (
-                        f"JOB_PROGRESS job_id={job.id} type={job.type} phase={phase} "
+                        f"{local_timestamp()} JOB_PROGRESS job_id={job.id} type={job.type} phase={phase} "
                         f"progress={mapped:.3f} message={message} data={json.dumps(data or {}, ensure_ascii=False, default=str)}"
                     ),
                     file=sys.stderr,
@@ -353,3 +404,7 @@ def replace_source(rule_text: str, source_url: str) -> str:
             lines[index] = f"source={source_url}"
             return "\n".join(lines) + ("\n" if rule_text.endswith("\n") else "")
     return f"source={source_url}\n{rule_text}"
+
+
+def local_timestamp() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime())

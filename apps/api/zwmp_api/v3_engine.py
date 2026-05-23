@@ -2650,7 +2650,7 @@ def emit_progress(args: argparse.Namespace, phase: str, fraction: float, message
     payload = data or {}
     LOGGER.info("PROGRESS phase=%s fraction=%.3f message=%s data=%s", phase, clamp(fraction, 0.0, 1.0), message, json.dumps(payload, ensure_ascii=False, default=str))
     print(
-        f"PROGRESS phase={phase} fraction={clamp(fraction, 0.0, 1.0):.3f} message={message} data={json.dumps(payload, ensure_ascii=False, default=str)}",
+        f"{local_timestamp()} PROGRESS phase={phase} fraction={clamp(fraction, 0.0, 1.0):.3f} message={message} data={json.dumps(payload, ensure_ascii=False, default=str)}",
         file=sys.stderr,
     )
     if callback:
@@ -2661,7 +2661,7 @@ def log_profile(phase: str, started_at: float, **data: Any) -> None:
     duration_ms = round((time.perf_counter() - started_at) * 1000, 1)
     payload = json.dumps(data, ensure_ascii=False, default=str)
     LOGGER.info("PROFILE phase=%s duration_ms=%s data=%s", phase, duration_ms, payload)
-    print(f"PROFILE phase={phase} duration_ms={duration_ms} data={payload}", file=sys.stderr)
+    print(f"{local_timestamp()} PROFILE phase={phase} duration_ms={duration_ms} data={payload}", file=sys.stderr)
 
 
 def run_generation(args: argparse.Namespace) -> InferenceResult:
@@ -2881,11 +2881,18 @@ def debug_rule(args: argparse.Namespace) -> tuple[list[dict[str, str]], list[Deb
             data={"hops": [{"selector": selector, "mode": mode} for selector, mode in hops]},
         ))
 
+        limit_reached = False
         for sample in listing.sample_items[:args.limit]:
+            if len(items) >= args.limit:
+                limit_reached = True
+                break
             current_items = [{"href": sample["href"], "title": sample.get("title") or sample["href"]}]
             for hop_index, (selector, mode) in enumerate(hops, start=1):
                 next_items: list[dict[str, str]] = []
                 for current in current_items:
+                    if len(items) + len(next_items) >= args.limit:
+                        limit_reached = True
+                        break
                     expanded = debug_expand_once(
                         runtime,
                         current["href"],
@@ -2906,12 +2913,23 @@ def debug_rule(args: argparse.Namespace) -> tuple[list[dict[str, str]], list[Deb
                         next_items.append(current)
                     else:
                         for idx, link in enumerate(expanded if mode == "expand" else expanded[:1], start=1):
+                            if len(items) + len(next_items) >= args.limit:
+                                limit_reached = True
+                                break
                             title = current["title"]
                             if mode == "expand":
                                 title = f"{title} - {link.get('text') or f'Part {idx}'}"
                             next_items.append({"href": link["href"], "title": title})
                 current_items = next_items
-            items.extend({"title": item["title"], "url": item["href"]} for item in current_items)
+                if limit_reached:
+                    break
+            remaining = max(0, args.limit - len(items))
+            items.extend({"title": item["title"], "url": item["href"]} for item in current_items[:remaining])
+            if limit_reached:
+                break
+
+        if limit_reached:
+            diagnoses.append(f"Preview detail URL expansion stopped at limit={args.limit}.")
 
         if not diagnoses:
             diagnoses.append("当前 rule 的候选项和跳转链解析正常。若实际播放失败，应检查 network sniff 或详情页媒体识别。")
@@ -3026,6 +3044,7 @@ def validation_metrics_line(validation: HypothesisValidation) -> str:
 def print_validation_result(hypothesis: RuleHypothesis, validation: HypothesisValidation) -> None:
     score_style = Ansi.green if validation.quality_score >= 0.75 else Ansi.yellow if validation.quality_score >= 0.45 else Ansi.red
     print(
+        local_timestamp(),
         colorize("VALIDATED", Ansi.bold, score_style),
         colorize(hypothesis.id, Ansi.bold),
         f"source={hypothesis.source}",
@@ -3040,6 +3059,10 @@ def print_validation_result(hypothesis: RuleHypothesis, validation: HypothesisVa
     sample_titles = [item.get("title", "") for item in validation.listing.sample_items[:3] if item.get("title")]
     if sample_titles:
         print("  samples: " + " | ".join(sample_titles), file=sys.stderr)
+
+
+def local_timestamp() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime())
 
 
 def render_generation_report(result: InferenceResult) -> str:

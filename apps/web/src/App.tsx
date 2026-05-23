@@ -1,6 +1,6 @@
 import { Clipboard, ExternalLink, FileCode2, FolderTree, Github, Info, Languages, Play, RefreshCw, Share2, Smartphone } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { createGenerationJob, createProjectionJob, createShare, getGenerationJob, getProjectionJob, getPublicConfig, getShare } from "./api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { cancelJob, createGenerationJob, createProjectionJob, createShare, getGenerationJob, getProjectionJob, getPublicConfig, getShare } from "./api";
 import type { GenerationPartialResult, GenerationResult, JobResponse, MediaType, ProjectionItem, ProjectionMedia, ProjectionNode, ProjectionResult, PublicConfig, RuntimeNotice } from "./types";
 
 type Locale = "en" | "zh";
@@ -153,6 +153,7 @@ export function App() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [siteProfile, setSiteProfile] = useState<GenerationResult["site_profile"] | null>(null);
+  const jobRef = useRef<JobResponse | null>(null);
 
   const generationResult = job?.result && "rule_text" in job.result ? (job.result as GenerationResult) : null;
   const selectedItem = projection.items.find((item) => item.id === selectedItemId) ?? projection.items[0] ?? null;
@@ -161,6 +162,20 @@ export function App() {
 
   useEffect(() => {
     getPublicConfig().then(setConfig).catch(() => setConfig(fallbackConfig));
+  }, []);
+
+  useEffect(() => {
+    jobRef.current = job;
+  }, [job]);
+
+  useEffect(() => {
+    const cancelActiveOnClose = () => {
+      const active = jobRef.current;
+      if (!active || !["queued", "running"].includes(active.status)) return;
+      navigator.sendBeacon?.(`/api/jobs/${active.id}/cancel`, new Blob(["{}"], { type: "application/json" }));
+    };
+    window.addEventListener("pagehide", cancelActiveOnClose);
+    return () => window.removeEventListener("pagehide", cancelActiveOnClose);
   }, []);
 
   useEffect(() => {
@@ -229,6 +244,7 @@ export function App() {
   async function generate() {
     setError(null);
     setShareUrl(null);
+    await cancelActiveJob();
     setJob(null);
     setProjection(emptyProjection);
     setRuntimeNotices([]);
@@ -252,7 +268,7 @@ export function App() {
   function applyJobPartial(partial: GenerationPartialResult) {
     if (partial.rule_text) setRuleText(partial.rule_text);
     if (partial.site_profile) setSiteProfile(partial.site_profile);
-    setRuntimeNotices(partial.runtime_notices ?? []);
+    if (partial.runtime_notices) setRuntimeNotices(partial.runtime_notices);
     if (partial.projection_preview) {
       setProjection(partial.projection_preview);
       setSelectedItemId((current) => keepOrFirstItem(current, partial.projection_preview ?? emptyProjection));
@@ -262,6 +278,7 @@ export function App() {
   async function previewEditedRule() {
     setError(null);
     setShareUrl(null);
+    await cancelActiveJob();
     setJob(null);
     setProjection(emptyProjection);
     setRuntimeNotices([]);
@@ -269,6 +286,16 @@ export function App() {
     setSelectedItemId(null);
     const created = await createProjectionJob(ruleText);
     setJob(created);
+  }
+
+  async function cancelActiveJob() {
+    const active = jobRef.current;
+    if (!active || !["queued", "running"].includes(active.status)) return;
+    try {
+      await cancelJob(active.id);
+    } catch {
+      // Best-effort cleanup; the new job should still proceed if cancellation races with completion.
+    }
   }
 
   async function copyRule() {

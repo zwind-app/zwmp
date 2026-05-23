@@ -48,7 +48,7 @@ export interface ProjectionResult {
 }
 
 export interface RuntimeNotice {
-  kind: "ai_fallback" | "ai_quota" | "sniffing_limited";
+  kind: "ai_fallback" | "ai_quota" | "sniffing_limited" | "preview_limited";
   message: string;
   action: string;
 }

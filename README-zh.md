@@ -84,6 +84,7 @@ max_items=30
 - `ZWMP_REQUEST_TIMEOUT`：页面请求超时时间，单位秒。默认：`12`。
 - `ZWMP_MAX_HTML_BYTES`：最大 HTML 响应大小。默认：`2000000`。
 - `ZWMP_CHROME_HEADLESS_QUOTA`：允许同时运行 Chromium 的 job 数量。默认：`1`。
+- `ZWMP_PREVIEW_DETAIL_LIMIT`：preview 阶段最多解析的 detail URL 数量。默认：`30`。
 
 站点引导文案、SEO metadata、公开链接、AI providers 和 AI quota 都配置在 `config/zwmp.config.json`。如果该文件配置了 AI providers，会覆盖旧的 env AI 配置。如果没有可用 provider、quota 用尽或 provider ratelimited，ZWMP 会 fallback 到 v3 local hypotheses + validation finalizer，并在 Web UI 显式提示。
 
