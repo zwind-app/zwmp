@@ -41,7 +41,7 @@ Core responsibilities:
 
 ZWMP deliberately separates rule generation from resource preview:
 
-- Rule generation cache: mandatory, infinite TTL, keyed by normalized URL pattern, media type, and generator version.
+- Rule generation cache: mandatory, infinite TTL, keyed by normalized URL pattern, media type, generator version, and generation mode (`ai` or `local`). AI cache is preferred. Local cache is used only when AI is unavailable or over quota.
 - Projection preview: not long-term cached. It represents a fresh execution of the rule and may contain expiring media URLs.
 
 This is important because many media URLs contain short-lived signatures or require request headers observed during browser loading.
@@ -52,11 +52,18 @@ Successful generated rules are saved under `data/generated-rules`:
 
 ```text
 data/generated-rules/
-  video/
-    streaming/
-      example.com/
-        example.com-video-<hash>.wm
-        example.com-video-<hash>.json
+  ai/
+    video/
+      streaming/
+        example.com/
+          example.com-video-<hash>.wm
+          example.com-video-<hash>.json
+  local/
+    video/
+      streaming/
+        example.com/
+          example.com-video-<hash>.wm
+          example.com-video-<hash>.json
 ```
 
 The metadata file is intended to become the source material for a future community rule index named ZWMP-Hub.

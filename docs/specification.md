@@ -36,7 +36,7 @@ duration_selector=.duration
 media_selector=video source
 media_type=video
 media_url_ttl=0
-media_delivery=auto
+media_delivery=redirect
 projection=by-item
 max_items=30
 force_network_sniff=false
@@ -61,7 +61,7 @@ Runtime support levels:
 
 - `projection=by-item`
 - `media_type=video`
-- `media_delivery=auto`
+- `media_delivery=redirect`
 - `detail_url_mode=single`
 - `detail_url_max_hops=3`
 - `detail_url_stop_when_media_found=true`

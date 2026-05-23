@@ -36,6 +36,19 @@ def test_v3_sanitize_removes_disabled_player_fields():
     assert rule["fast_mode"] is True
 
 
+def test_v3_sanitize_defaults_media_delivery_to_redirect():
+    rule = v3.sanitize_rule(
+        {
+            "source": "https://example.com/videos",
+            "candidate_selector": ".card",
+        },
+        "https://example.com/videos",
+        50,
+    )
+
+    assert rule["media_delivery"] == "redirect"
+
+
 def test_preview_projection_uses_detail_probe_media():
     probe = v3.DetailProbe(item_title="Episode One", item_url="https://example.com/watch/1")
     probe.final_url = "https://example.com/watch/1"

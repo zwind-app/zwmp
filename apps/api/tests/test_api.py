@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from zwmp_api.main import app
-from zwmp_api.storage import normalized_url_pattern
+from zwmp_api.storage import Storage, normalized_url_pattern
 from zwmp_rule.types import ProjectionResult
 
 
@@ -25,6 +25,25 @@ def test_normalized_url_pattern_keeps_query_keys_without_values():
         normalized_url_pattern("https://Example.com/path/video?id=123&page=9&utm=x#frag")
         == "https://example.com/path/video?id=&page=&utm="
     )
+
+
+def test_ai_and_local_cache_are_separate(tmp_path):
+    from zwmp_api.config import Settings
+
+    storage = Storage(
+        Settings(
+            data_dir=tmp_path / "data",
+            cache_db=tmp_path / "cache.sqlite3",
+            rule_output_dir=tmp_path / "rules",
+        )
+    )
+    key = storage.cache_key("https://example.com/videos?id=1", "video", {})
+
+    storage.set_cache(key, "local-rule", "local")
+    storage.set_cache(key, "ai-rule", "ai")
+
+    assert storage.get_cached_rule_id(key, "ai") == "ai-rule"
+    assert storage.get_cached_rule_id(key, "local") == "local-rule"
 
 
 def test_share_roundtrip():

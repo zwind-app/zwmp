@@ -74,6 +74,7 @@ class RuleSummary(BaseModel):
     rule_path: str
     metadata_path: str
     created_at: str
+    generation_mode: str = "local"
 
 
 class GenerationResult(BaseModel):

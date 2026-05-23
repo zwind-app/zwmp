@@ -37,10 +37,12 @@ class Storage:
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS generation_cache (
-                  cache_key TEXT PRIMARY KEY,
+                  cache_key TEXT NOT NULL,
+                  generation_mode TEXT NOT NULL DEFAULT 'local',
                   rule_id TEXT NOT NULL,
                   created_at TEXT NOT NULL,
-                  generator_version TEXT NOT NULL
+                  generator_version TEXT NOT NULL,
+                  PRIMARY KEY(cache_key, generation_mode)
                 );
                 CREATE TABLE IF NOT EXISTS generated_rules (
                   id TEXT PRIMARY KEY,
@@ -50,7 +52,8 @@ class Storage:
                   category TEXT NOT NULL,
                   rule_path TEXT NOT NULL,
                   metadata_path TEXT NOT NULL,
-                  created_at TEXT NOT NULL
+                  created_at TEXT NOT NULL,
+                  generation_mode TEXT NOT NULL DEFAULT 'local'
                 );
                 CREATE TABLE IF NOT EXISTS ai_usage (
                   provider_id TEXT NOT NULL,
@@ -73,6 +76,13 @@ class Storage:
                 );
                 """
             )
+            self._ensure_column(conn, "generation_cache", "generation_mode", "TEXT NOT NULL DEFAULT 'local'")
+            self._ensure_column(conn, "generated_rules", "generation_mode", "TEXT NOT NULL DEFAULT 'local'")
+
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+        columns = [str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+        if column not in columns:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def cache_key(self, url: str, media_type: str, options: dict[str, object]) -> str:
         payload = {
@@ -82,19 +92,25 @@ class Storage:
         }
         return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
-    def get_cached_rule_id(self, cache_key: str) -> str | None:
+    def get_cached_rule_id(self, cache_key: str, generation_mode: str) -> str | None:
         with self._connect() as conn:
-            row = conn.execute("SELECT rule_id FROM generation_cache WHERE cache_key = ?", (cache_key,)).fetchone()
+            row = conn.execute(
+                "SELECT rule_id FROM generation_cache WHERE cache_key = ? AND generation_mode = ?",
+                (cache_key, generation_mode),
+            ).fetchone()
         return str(row["rule_id"]) if row else None
 
-    def set_cache(self, cache_key: str, rule_id: str) -> None:
+    def set_cache(self, cache_key: str, rule_id: str, generation_mode: str) -> None:
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO generation_cache(cache_key, rule_id, created_at, generator_version) VALUES (?, ?, ?, ?)",
-                (cache_key, rule_id, now_iso(), self.settings.generator_version),
+                """
+                INSERT OR REPLACE INTO generation_cache(cache_key, generation_mode, rule_id, created_at, generator_version)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (cache_key, generation_mode, rule_id, now_iso(), self.settings.generator_version),
             )
 
-    def save_rule(self, rule_text: str, site_profile: SiteProfile) -> RuleSummary:
+    def save_rule(self, rule_text: str, site_profile: SiteProfile, generation_mode: str = "local") -> RuleSummary:
         rule = parse_rule(rule_text)
         source = str(rule.source)
         parsed = urlparse(source)
@@ -104,7 +120,8 @@ class Storage:
         created_at = now_iso()
         digest = hashlib.sha1(f"{source}|{media_type}|{rule_text}".encode()).hexdigest()[:12]
         rule_id = f"{host}-{media_type}-{digest}"
-        directory = self.settings.rule_output_dir / slug(media_type) / category / host
+        mode = "ai" if generation_mode == "ai" else "local"
+        directory = self.settings.rule_output_dir / mode / slug(media_type) / category / host
         directory.mkdir(parents=True, exist_ok=True)
         rule_path = directory / f"{rule_id}.wm"
         metadata_path = directory / f"{rule_id}.json"
@@ -117,16 +134,17 @@ class Storage:
             "site_profile": site_profile.model_dump(),
             "created_at": created_at,
             "generator_version": self.settings.generator_version,
+            "generation_mode": mode,
         }
         metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO generated_rules
-                (id, source, host, media_type, category, rule_path, metadata_path, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, source, host, media_type, category, rule_path, metadata_path, created_at, generation_mode)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (rule_id, source, host, media_type, category, str(rule_path), str(metadata_path), created_at),
+                (rule_id, source, host, media_type, category, str(rule_path), str(metadata_path), created_at, mode),
             )
         return RuleSummary(
             id=rule_id,
@@ -137,6 +155,7 @@ class Storage:
             rule_path=str(rule_path),
             metadata_path=str(metadata_path),
             created_at=created_at,
+            generation_mode=mode,
         )
 
     def get_rule_text(self, rule_id: str) -> str | None:
@@ -162,6 +181,7 @@ class Storage:
                 rule_path=row["rule_path"],
                 metadata_path=row["metadata_path"],
                 created_at=row["created_at"],
+                generation_mode=row["generation_mode"] if "generation_mode" in row.keys() else "local",
             )
             for row in rows
         ]

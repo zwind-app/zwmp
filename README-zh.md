@@ -83,7 +83,7 @@ max_items=30
 
 默认 AI quota 是 global：每个 `zwmp_device_id` cookie 每天最多 2 次 AI 生成。provider 可以覆盖 global quota，支持 `ip` / `device_id` 维度和 `hour` / `day` 时间窗口。
 
-生成 cache 是强制的，key 基于 normalized URL pattern、媒体类型和 generator version。URL 查询参数会保留参数名但移除参数值。cache 没有 TTL；管理员可以手动删除 cache 记录或 generated rule 文件。
+生成 cache 是强制的，key 基于 normalized URL pattern、媒体类型、generator version 和 generation mode（`ai` / `local`）。URL 查询参数会保留参数名但移除参数值。AI cache 优先；只有 AI 不可用或 quota 用尽时才使用 local cache。cache 没有 TTL；管理员可以手动删除 cache 记录或 generated rule 文件。
 
 Playwright 是运行时硬要求。生成和预览都使用 v3 browser-first workflow；如果 Chromium 无法启动，任务会失败并提示安装方式。
 
@@ -118,6 +118,17 @@ npm run build
 ```bash
 ./scripts/export_rules.py --output exports/zwmp-rules
 ```
+
+导出目录会区分 AI/local：
+
+```text
+exports/zwmp-rules/
+  ai/
+  local/
+  manifest.json
+```
+
+systemd 和 nginx 的线上部署示例在 `deploy/`。
 
 ## 当前状态
 

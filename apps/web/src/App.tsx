@@ -225,9 +225,11 @@ export function App() {
   async function generate() {
     setError(null);
     setShareUrl(null);
+    setJob(null);
     setProjection(emptyProjection);
     setRuntimeNotices([]);
     setSiteProfile(null);
+    setSelectedItemId(null);
     const created = await createGenerationJob(url, mediaType, {
       force_network_sniff: forceNetworkSniff,
       fast_mode: fastMode,
@@ -246,7 +248,11 @@ export function App() {
   async function previewEditedRule() {
     setError(null);
     setShareUrl(null);
+    setJob(null);
+    setProjection(emptyProjection);
+    setRuntimeNotices([]);
     setSiteProfile(null);
+    setSelectedItemId(null);
     const created = await createProjectionJob(ruleText);
     setJob(created);
   }
@@ -446,7 +452,7 @@ function DebugTimeline({ events, locale, title }: { events: { phase: string; mes
   return (
     <details className="debug" open>
       <summary>{title}</summary>
-      {events.slice(-10).map((event, index) => (
+      {events.map((event, index) => (
         <div className="event" key={`${event.phase}-${index}`}>
           <span>{event.phase}</span>
           <p>{translateDebug(event.message, locale)}</p>

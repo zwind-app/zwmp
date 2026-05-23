@@ -46,7 +46,7 @@ class WebMediaRule(BaseModel):
     projection: Projection = Projection.BY_ITEM
     media_type: MediaType = MediaType.VIDEO
     media_url_ttl: float | None = None
-    media_delivery: MediaDelivery = MediaDelivery.AUTO
+    media_delivery: MediaDelivery = MediaDelivery.REDIRECT
     max_items: int | None = None
     force_network_sniff: bool = False
     play_button_selector: str | None = None

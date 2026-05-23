@@ -32,6 +32,7 @@ class ClientContext:
 class AISelection:
     settings: Settings
     notice: RuntimeNotice | None = None
+    ai_available: bool = False
 
 
 class JobManager:
@@ -84,7 +85,14 @@ class JobManager:
             )
         )
 
-        cached_id = self.storage.get_cached_rule_id(cache_key)
+        ai_selection = self._select_ai_settings(context)
+        if ai_selection.notice:
+            job.debug_events.append(DebugEvent(phase="ai-quota", message=ai_selection.notice.message))
+        cached_id = self.storage.get_cached_rule_id(cache_key, "ai")
+        cache_mode = "ai"
+        if not cached_id and not ai_selection.ai_available:
+            cached_id = self.storage.get_cached_rule_id(cache_key, "local")
+            cache_mode = "local"
         if cached_id:
             rule_text = self.storage.get_rule_text(cached_id)
             if rule_text:
@@ -101,9 +109,9 @@ class JobManager:
                     runtime_notices=preview["runtime_notices"],
                     v3=preview["debug"],
                 )
+                job.debug_events.append(DebugEvent(phase="cache", message=f"Using {cache_mode} rule cache"))
                 return result.model_dump()
 
-        ai_selection = self._select_ai_settings(context)
         self._update(job, "collecting-evidence", 0.12, "Collecting browser-rendered v3 listing evidence")
         generated = await asyncio.to_thread(
             generate_v3,
@@ -119,8 +127,9 @@ class JobManager:
         if ai_selection.notice:
             runtime_notices.insert(0, ai_selection.notice)
         self._update(job, "saving", 0.9, "Saving v3 generated rule")
-        summary = self.storage.save_rule(generated["rule_text"], generated["site_profile"])
-        self.storage.set_cache(cache_key, summary.id)
+        generation_mode = "ai" if bool(generated["v3"].get("used_ai")) else "local"
+        summary = self.storage.save_rule(generated["rule_text"], generated["site_profile"], generation_mode=generation_mode)
+        self.storage.set_cache(cache_key, summary.id, generation_mode)
         result = GenerationResult(
             rule_id=summary.id,
             rule_text=generated["rule_text"],
@@ -209,7 +218,7 @@ class JobManager:
     def _select_ai_settings(self, context: ClientContext) -> AISelection:
         providers = configured_ai_providers(self.settings)
         if not providers:
-            return AISelection(self.settings.model_copy(update={"ai_provider": "none", "ai_api_key": None}))
+            return AISelection(self.settings.model_copy(update={"ai_provider": "none", "ai_api_key": None}), ai_available=False)
         subjects = {"ip": context.ip, "device_id": context.device_id}
         denied: list[str] = []
         for provider in providers:
@@ -229,14 +238,15 @@ class JobManager:
                         "ai_api_key": api_key,
                         "ai_model": provider.model,
                     }
-                )
+                ),
+                ai_available=True,
             )
         notice = RuntimeNotice(
             kind="ai_quota",
             message="AI quota is exhausted or all configured providers are unavailable; local v3 hypotheses were used.",
             action="Wait for quota reset, self-host with a higher quota, or configure additional AI providers.",
         )
-        return AISelection(self.settings.model_copy(update={"ai_provider": "none", "ai_api_key": None}), notice)
+        return AISelection(self.settings.model_copy(update={"ai_provider": "none", "ai_api_key": None}), notice, ai_available=False)
 
 
 def configured_ai_providers(settings: Settings) -> list[AIProviderConfig]:

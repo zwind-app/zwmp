@@ -2503,9 +2503,9 @@ def sanitize_rule(raw_rule: dict[str, Any], source_url: str, max_items: int) -> 
 
     rule["media_type"] = normalize_media_type(rule.get("media_type"))
 
-    media_delivery = str(rule.get("media_delivery") or "auto").strip().lower()
+    media_delivery = str(rule.get("media_delivery") or "redirect").strip().lower()
     media_delivery = {"302": "redirect", "direct": "redirect"}.get(media_delivery, media_delivery)
-    rule["media_delivery"] = media_delivery if media_delivery in {"auto", "proxy", "redirect"} else "auto"
+    rule["media_delivery"] = media_delivery if media_delivery in {"auto", "proxy", "redirect"} else "redirect"
 
     try:
         media_url_ttl = float(rule["media_url_ttl"]) if "media_url_ttl" in rule else None

@@ -83,7 +83,7 @@ Site guidance, SEO metadata, public links, AI providers, and AI quota are config
 
 Default AI quota is global: 2 AI generations per `zwmp_device_id` cookie per day. Provider-specific quota can override the global quota by scope (`ip` or `device_id`) and window (`hour` or `day`).
 
-Generation cache is mandatory and keyed by normalized URL pattern, media type, and generator version. Query parameter values are removed but parameter names are retained. Cache records have no TTL; administrators can delete cache rows or generated rule files manually.
+Generation cache is mandatory and keyed by normalized URL pattern, media type, generator version, and generation mode (`ai` or `local`). Query parameter values are removed but parameter names are retained. AI cache is preferred. Local cache is used only when AI is unavailable or over quota. Cache records have no TTL; administrators can delete cache rows or generated rule files manually.
 
 Playwright is required at runtime. Generation and preview use the v3 browser-first workflow and fail with installation guidance when Chromium cannot launch.
 
@@ -118,6 +118,17 @@ Export generated rules for self-hosted review or future ZWMP-Hub curation:
 ```bash
 ./scripts/export_rules.py --output exports/zwmp-rules
 ```
+
+The export preserves AI/local separation:
+
+```text
+exports/zwmp-rules/
+  ai/
+  local/
+  manifest.json
+```
+
+Production deployment examples for systemd and nginx are in `deploy/`.
 
 ## Current Status
 
