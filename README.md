@@ -133,7 +133,7 @@ exports/zwmp-rules/
   manifest.json
 ```
 
-Production deployment examples for systemd and nginx are in `deploy/`.
+Production deployment examples for Docker Compose, systemd, and nginx are in `deploy/`.
 
 ## Current Status
 

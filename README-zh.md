@@ -133,7 +133,7 @@ exports/zwmp-rules/
   manifest.json
 ```
 
-systemd 和 nginx 的线上部署示例在 `deploy/`。
+Docker Compose、systemd 和 nginx 的线上部署示例在 `deploy/`。
 
 ## 当前状态
 

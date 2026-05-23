@@ -30,6 +30,7 @@ apps/web/node_modules/
 apps/web/dist/
 
 # Runtime data
+deploy/docker/compose.env
 data/cache/*
 !data/cache/.gitkeep
 data/generated-rules/**/*.wm

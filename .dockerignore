@@ -1,0 +1,14 @@
+.git
+.logs
+data
+tmp
+apps/api/.venv
+apps/web/node_modules
+apps/web/dist
+node_modules
+__pycache__
+.pytest_cache
+*.pyc
+.env
+deploy/docker/compose.env
+exports
