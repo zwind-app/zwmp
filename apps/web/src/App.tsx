@@ -322,7 +322,7 @@ export function App() {
     <main className="shell">
       <nav className="topbar">
         <div className="brand">
-          <span className="mark">ZW</span>
+          <img className="mark" src="/zwmp-icon.svg" alt="ZWMP icon" />
           <span>
             <strong>ZWMP</strong>
             <small>Web Media Projection</small>
